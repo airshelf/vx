@@ -1,6 +1,6 @@
 # vx
 
-Fast Vercel CLI replacement. Wraps the Vercel REST API directly — no SDK, no framework overhead.
+Fast, agent-friendly Vercel CLI replacement. Wraps the Vercel REST API directly — no SDK, no framework overhead. Designed for both humans and AI agents.
 
 ## Why?
 
@@ -83,6 +83,83 @@ vx ls --json | jq '.deployments[0].url'
 vx env --json --decrypt | jq '.envs[] | select(.key == "DATABASE_URL") | .value'
 ```
 
+## Use with AI agents
+
+Add this to your project's `CLAUDE.md` (or equivalent agent instructions):
+
+```markdown
+## Vercel
+
+Use `vx` instead of `vercel` CLI for deployment operations:
+- `vx ls --json` — list deployments (pipe through jq for filtering)
+- `vx logs <url> --no-follow --timeout 10000` — fetch logs without hanging
+- `vx env --json --project <id>` — read env vars (never writes local files)
+- `vx domains --json` — list domains
+
+Always use `--json` flag for machine-readable output. Never use `vercel env pull`.
+```
+
+## Agent Experience (AX) design principles
+
+vx is built for **Agent Experience** — the idea that AI agents are now users of developer tools. The same properties that make a tool work in shell scripts make it work with AI agents, plus a few extras.
+
+### The principles vx follows
+
+**1. Structured output by default**
+
+Every command supports `--json`. Agents waste tokens parsing ASCII tables and ANSI codes — JSON preserves the structure the code already has internally.
+
+```bash
+# Agent-friendly: structured, parseable
+vx ls --json | jq '.deployments[] | {url, state}'
+
+# Human-friendly: colored table (default)
+vx ls
+```
+
+**2. stdout for data, stderr for noise**
+
+Results go to stdout. Warnings (rate limits, timeouts) go to stderr. An agent piping output never gets progress messages mixed into data.
+
+**3. No interactive prompts**
+
+vx never prompts for confirmation, opens a browser, or launches an editor. Auth is token-based (`VERCEL_TOKEN` env var or existing CLI config). Every operation is fully specified by its arguments.
+
+**4. Fail fast and loud**
+
+The original `vercel logs` hangs silently for 5 minutes. vx has a `--timeout` flag (default 30s) and exits with a clear error message. Agents can detect failure and try something else.
+
+**5. Never mutate implicitly**
+
+vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. An agent using vx can't accidentally corrupt project state.
+
+**6. Read existing state, don't create new state**
+
+vx reads auth from `~/.local/share/com.vercel.cli/auth.json` and project context from `.vercel/project.json`. It doesn't create its own config files. Zero setup if the Vercel CLI was used before.
+
+**7. Instant startup**
+
+Bun compiles to a single binary. No Node.js framework boot, no plugin loading. In agent workflows where tools are called 40-60 times per session, startup latency compounds.
+
+### The AX checklist
+
+Building a CLI tool for AI agents? Check these:
+
+| Principle | Check | Why it matters |
+|---|---|---|
+| `--json` on every command | Structured output saves tokens and eliminates parsing errors |
+| stdout = data, stderr = logs | Piping works, agents get clean data |
+| No interactive prompts | Agents can't type "Y" at a prompt |
+| Deterministic exit codes | 0 = success, non-zero = failure, agents need binary signals |
+| `--timeout` on network ops | Silent hangs waste agent context and money |
+| Clear error messages | Agents retry based on error text — make it parseable |
+| Read-only by default | Destructive ops need explicit flags, not implicit behavior |
+| Idempotent operations | Safe to retry — agents are iterative |
+| `--help` is the API contract | Agents discover capabilities from help text, keep it concise |
+| Fast startup | Sub-100ms — agents call tools dozens of times per session |
+
+The meta-insight: the features developers are proudest of for humans (interactive wizards, spinners, guided flows) become the biggest obstacles for agents. **Good AX means boring: predictable, structured, silent, deterministic.**
+
 ## Build from source
 
 ```bash
@@ -90,6 +167,7 @@ git clone https://github.com/yourusername/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
+bun test        # 33 tests
 ```
 
 ## License
