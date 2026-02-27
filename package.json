@@ -1,13 +1,13 @@
 {
-  "name": "vx-cli",
-  "version": "0.1.0",
+  "name": "@airshelf/vx",
+  "version": "0.1.1",
   "description": "Fast, agent-friendly Vercel CLI replacement. Bun-powered, JSON-first.",
   "type": "module",
   "license": "MIT",
   "author": "Evgeny Oleynik",
   "repository": {
     "type": "git",
-    "url": "https://github.com/airshelf/vx.git"
+    "url": "git+https://github.com/airshelf/vx.git"
   },
   "homepage": "https://github.com/airshelf/vx",
   "keywords": [
@@ -21,15 +21,17 @@
     "json"
   ],
   "bin": {
-    "vx": "./src/cli.ts"
+    "vx": "dist/cli.js"
   },
   "files": [
-    "src/",
+    "dist/",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
     "build": "bun build --compile ./src/cli.ts --outfile vx",
+    "build:npm": "bun build ./src/cli.ts --outdir dist --target bun",
+    "prepublishOnly": "bun run build:npm",
     "test": "bun test"
   },
   "dependencies": {

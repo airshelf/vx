@@ -16,13 +16,13 @@ Fast, agent-friendly Vercel CLI replacement. Wraps the Vercel REST API directly 
 ## Install
 
 ```bash
-bun install -g vx-cli
+bun install -g @airshelf/vx
 ```
 
 Or run directly:
 
 ```bash
-bunx vx-cli ls
+bunx @airshelf/vx ls
 ```
 
 ## Auth
