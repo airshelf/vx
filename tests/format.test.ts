@@ -68,12 +68,12 @@ describe("table", () => {
     spy.mockRestore();
   });
 
-  test("prints header, separator, and data rows", () => {
+  test("prints header and data rows without separator", () => {
     spy = spyOn(console, "log").mockImplementation(() => {});
 
     table(["Name", "Age"], [["Alice", "30"], ["Bob", "25"]]);
 
-    expect(spy).toHaveBeenCalledTimes(4); // header + separator + 2 data rows
+    expect(spy).toHaveBeenCalledTimes(3); // header + 2 data rows (no separator)
 
     const calls = spy.mock.calls;
 
@@ -81,12 +81,9 @@ describe("table", () => {
     expect(calls[0][0]).toContain("Name");
     expect(calls[0][0]).toContain("Age");
 
-    // Separator is all dashes and spaces
-    expect(calls[1][0]).toMatch(/^[-\s]+$/);
-
     // Data rows
-    expect(calls[2][0]).toContain("Alice");
-    expect(calls[3][0]).toContain("Bob");
+    expect(calls[1][0]).toContain("Alice");
+    expect(calls[2][0]).toContain("Bob");
   });
 });
 

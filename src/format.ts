@@ -7,7 +7,6 @@ export function table(headers: string[], rows: string[][]) {
   const pad = (s: string, w: number) => s + " ".repeat(w - s.length + 2);
 
   console.log(pc.bold(headers.map((h, i) => pad(h, widths[i])).join("")));
-  console.log(widths.map((w) => "-".repeat(w + 2)).join(""));
   for (const row of rows) {
     console.log(row.map((c, i) => pad(c, widths[i])).join(""));
   }
