@@ -168,7 +168,7 @@ The meta-insight: the features developers are proudest of for humans (interactiv
 ## Build from source
 
 ```bash
-git clone https://github.com/yourusername/vx.git
+git clone https://github.com/airshelf/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
