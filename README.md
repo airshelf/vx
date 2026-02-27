@@ -47,13 +47,20 @@ vx ls --state ERROR      # filter by state
 vx ls --json             # raw JSON output
 ```
 
-### `vx logs <url>` — stream deployment logs
+### `vx logs build <url>` — build logs
 
 ```bash
-vx logs my-app-abc123.vercel.app        # stream logs (30s timeout)
-vx logs my-app-abc123.vercel.app -f     # follow live
-vx logs my-app-abc123.vercel.app --no-follow  # fetch once
-vx logs my-app-abc123.vercel.app --timeout 60000  # extend timeout
+vx logs build my-app-abc123.vercel.app           # stream build output (30s timeout)
+vx logs build my-app-abc123.vercel.app --no-follow  # fetch once
+vx logs build my-app-abc123.vercel.app --timeout 60000  # extend timeout
+```
+
+### `vx logs runtime <url>` — runtime logs
+
+```bash
+vx logs runtime my-app-abc123.vercel.app         # serverless function invocations
+vx logs runtime my-app-abc123.vercel.app -f      # follow live
+vx logs runtime my-app-abc123.vercel.app --json  # raw JSON events
 ```
 
 ### `vx env` — list environment variables
@@ -92,7 +99,8 @@ Add this to your project's `CLAUDE.md` (or equivalent agent instructions):
 
 Use `vx` instead of `vercel` CLI for deployment operations:
 - `vx ls --json` — list deployments (pipe through jq for filtering)
-- `vx logs <url> --no-follow --timeout 10000` — fetch logs without hanging
+- `vx logs build <url> --no-follow --timeout 10000` — fetch build logs without hanging
+- `vx logs runtime <url> --no-follow --timeout 10000` — fetch runtime logs without hanging
 - `vx env --json --project <id>` — read env vars (never writes local files)
 - `vx domains --json` — list domains
 

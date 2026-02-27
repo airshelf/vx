@@ -44,10 +44,11 @@ async function runCli(
   return { stdout, stderr, exitCode };
 }
 
-describe("logs command", () => {
+describe("logs build command", () => {
   test("--json --no-follow outputs valid NDJSON events", async () => {
     const { stdout } = await runCli(
       "logs",
+      "build",
       "test.vercel.app",
       "--json",
       "--no-follow",
@@ -69,6 +70,7 @@ describe("logs command", () => {
   test("--no-follow formatted output contains event text", async () => {
     const { stdout } = await runCli(
       "logs",
+      "build",
       "test.vercel.app",
       "--no-follow",
       "--timeout",
@@ -79,10 +81,41 @@ describe("logs command", () => {
     expect(stdout).toContain("Build completed");
   });
 
+  test("sends builds=1 for build subcommand", async () => {
+    capturedPath = "";
+    await runCli(
+      "logs",
+      "build",
+      "test.vercel.app",
+      "--no-follow",
+      "--timeout",
+      "5000"
+    );
+
+    expect(capturedPath).toContain("builds=1");
+  });
+});
+
+describe("logs runtime command", () => {
+  test("sends builds=0 for runtime subcommand", async () => {
+    capturedPath = "";
+    await runCli(
+      "logs",
+      "runtime",
+      "test.vercel.app",
+      "--no-follow",
+      "--timeout",
+      "5000"
+    );
+
+    expect(capturedPath).toContain("builds=0");
+  });
+
   test("strips https:// prefix from URL", async () => {
     capturedPath = "";
     await runCli(
       "logs",
+      "runtime",
       "https://test.vercel.app",
       "--no-follow",
       "--timeout",
