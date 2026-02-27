@@ -1,0 +1,88 @@
+import type { Command } from "commander";
+import pc from "picocolors";
+import { getConfig } from "../config.ts";
+
+const BASE = "https://api.vercel.com";
+
+export function registerLogs(program: Command) {
+  program
+    .command("logs <url>")
+    .description("Stream deployment logs")
+    .option("-f, --follow", "stream live", true)
+    .option("--no-follow", "fetch once and exit")
+    .option("--timeout <ms>", "timeout in ms", "30000")
+    .option("--json", "output raw JSON events")
+    .action(async (url: string, opts) => {
+      url = url.replace(/^https?:\/\//, "");
+
+      const config = await getConfig();
+      let path = `/v3/deployments/${url}/events?direction=forward&builds=1`;
+      if (opts.follow) path += "&follow=1";
+
+      const fullUrl = `${BASE}${path}${
+        config.teamId
+          ? (path.includes("?") ? "&" : "?") + `teamId=${config.teamId}`
+          : ""
+      }`;
+
+      const controller = new AbortController();
+      const timeoutMs = parseInt(opts.timeout);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const res = await fetch(fullUrl, {
+          headers: { Authorization: `Bearer ${config.token}` },
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Vercel API ${res.status}: ${await res.text()}`);
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        for await (const chunk of res.body!) {
+          buffer += decoder.decode(chunk, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop()!;
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+              if (opts.json) {
+                console.log(JSON.stringify(event));
+              } else {
+                const timestamp = new Date(
+                  event.created || event.date
+                ).toLocaleTimeString();
+                const text =
+                  event.text ||
+                  event.payload?.text ||
+                  JSON.stringify(event.payload || event);
+                const colored =
+                  /error/i.test(text) ? pc.red(text) :
+                  /warn/i.test(text) ? pc.yellow(text) :
+                  text;
+                console.log(`${pc.dim(timestamp)}  ${colored}`);
+              }
+            } catch {
+              console.log(line);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          console.error(
+            `\nTimed out after ${timeoutMs / 1000}s (use --timeout to extend)`
+          );
+          process.exit(0);
+        }
+        console.error(err.message);
+        process.exit(1);
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+}
