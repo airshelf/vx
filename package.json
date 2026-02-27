@@ -6,7 +6,8 @@
     "vx": "./src/cli.ts"
   },
   "scripts": {
-    "build": "bun build --compile ./src/cli.ts --outfile vx"
+    "build": "bun build --compile ./src/cli.ts --outfile vx",
+    "test": "bun test"
   },
   "dependencies": {
     "commander": "^13.1.0",

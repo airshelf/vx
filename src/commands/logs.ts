@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import pc from "picocolors";
 import { getConfig } from "../config.ts";
 
-const BASE = "https://api.vercel.com";
+const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
 export function registerLogs(program: Command) {
   program

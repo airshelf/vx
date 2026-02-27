@@ -1,6 +1,6 @@
 import { getConfig } from "./config.ts";
 
-const BASE = "https://api.vercel.com";
+const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
 async function buildRequest(path: string, opts?: { method?: string; body?: unknown }) {
   const config = await getConfig();
