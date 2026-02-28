@@ -153,6 +153,10 @@ vx reads auth from `~/.local/share/com.vercel.cli/auth.json` and project context
 
 Bun compiles to a single binary. No Node.js framework boot, no plugin loading. In agent workflows where tools are called 40-60 times per session, startup latency compounds.
 
+**9. Guide on failure — empty results are the worst UX**
+
+When a tool returns nothing, the agent has zero signal. It doesn't know if the query was wrong, the scope was too narrow, or there's genuinely nothing. Print a diagnostic to stderr: what was searched, how much was searched, and what to try next. `claude-grep` prints `no matches for "x" (126 files, 7 days, current project) — try: -d 30, -a, -s`. One line turns a dead end into a next step.
+
 ### The AX checklist
 
 Building a CLI tool for AI agents? Check these:
@@ -170,6 +174,7 @@ Building a CLI tool for AI agents? Check these:
 | Idempotent operations | Safe to retry — agents are iterative |
 | `--help` is the API contract | Agents discover capabilities from help text |
 | Fast startup | Sub-100ms — dozens of calls per session |
+| Guide on empty results | No output = dead end — print scope + suggestions to stderr |
 
 The meta-insight: the features developers are proudest of for humans (interactive wizards, spinners, guided flows) become the biggest obstacles for agents. **Good AX means boring: predictable, structured, silent, deterministic.**
 
