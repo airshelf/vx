@@ -157,6 +157,10 @@ Bun compiles to a single binary. No Node.js framework boot, no plugin loading. I
 
 When a tool returns nothing, the agent has zero signal. It doesn't know if the query was wrong, the scope was too narrow, or there's genuinely nothing. Print a diagnostic to stderr: what was searched, how much was searched, and what to try next. `claude-grep` prints `no matches for "x" (126 files, 7 days, current project) — try: -d 30, -a, -s`. One line turns a dead end into a next step.
 
+**10. Log usage for yourself — close the feedback loop**
+
+You can't improve what you can't observe. Log one JSONL line per invocation — what was called, what flags, how many results, how long it took. Not for analytics dashboards — for YOU to see how agents actually use the tool. `claude-grep --usage` shows hit rate, empty patterns, retry chains, and BRE misuse. Every improvement in this list (BRE normalization, no-match hints) came from reading that log. The tool documents how to improve itself.
+
 ### The AX checklist
 
 Building a CLI tool for AI agents? Check these:
@@ -175,6 +179,7 @@ Building a CLI tool for AI agents? Check these:
 | `--help` is the API contract | Agents discover capabilities from help text |
 | Fast startup | Sub-100ms — dozens of calls per session |
 | Guide on empty results | No output = dead end — print scope + suggestions to stderr |
+| Log usage locally | You can't improve what you can't observe — JSONL + `--usage` |
 
 The meta-insight: the features developers are proudest of for humans (interactive wizards, spinners, guided flows) become the biggest obstacles for agents. **Good AX means boring: predictable, structured, silent, deterministic.**
 
