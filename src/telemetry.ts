@@ -67,6 +67,22 @@ export function printUsageStats(): void {
     console.log(`  ${cmd}: ${count} (${Math.round(count * 100 / total)}%)`);
   }
 
+  // Flag frequency
+  const flagCounts: Record<string, number> = {};
+  for (const e of recent) {
+    for (const a of e.args) {
+      if (a.startsWith("-")) flagCounts[a] = (flagCounts[a] || 0) + 1;
+    }
+  }
+  const topFlags = Object.entries(flagCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (topFlags.length) {
+    console.log();
+    console.log("Flags:");
+    for (const [f, count] of topFlags) {
+      console.log(`  ${f}: ${count} (${Math.round(count * 100 / total)}%)`);
+    }
+  }
+
   // Errors
   if (errors.length) {
     console.log();
@@ -79,5 +95,19 @@ export function printUsageStats(): void {
     for (const [err, count] of Object.entries(errCounts).sort((a, b) => b[1] - a[1]).slice(0, 5)) {
       console.log(`  ${err}${count > 1 ? ` (${count}x)` : ""}`);
     }
+  }
+
+  // Retry chains: error → same command succeeds within 2 min
+  let chains = 0;
+  for (let i = 1; i < recent.length; i++) {
+    if (!recent[i - 1].ok && recent[i].ok && recent[i].cmd === recent[i - 1].cmd) {
+      const t1 = new Date(recent[i - 1].ts).getTime();
+      const t2 = new Date(recent[i].ts).getTime();
+      if (t2 - t1 < 120_000) chains++;
+    }
+  }
+  if (chains) {
+    console.log();
+    console.log(`Retry chains: ${chains} (error → retry same command within 2 min)`);
   }
 }
