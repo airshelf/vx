@@ -73,7 +73,7 @@ async function streamLogs(
       console.error(
         `\nTimed out after ${timeoutMs / 1000}s (use --timeout to extend)`
       );
-      process.exit(0);
+      process.exit(1);
     }
     console.error(err.message);
     process.exit(1);

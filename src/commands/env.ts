@@ -37,7 +37,14 @@ export function registerEnv(program: Command) {
       }
 
       if (!envs.length) {
-        console.log("No environment variables found");
+        const scope = [
+          `project=${projectId}`,
+          opts.target ? `target=${opts.target}` : "all targets",
+        ].join(", ");
+        console.error(`No environment variables found (${scope})`);
+        if (opts.target) {
+          console.error("  hint: remove --target to see all environments");
+        }
         return;
       }
 

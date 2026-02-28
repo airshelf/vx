@@ -26,7 +26,9 @@ export async function vercel(
   const res = await fetch(url, init);
 
   if (!res.ok) {
-    throw new Error(`Vercel API ${res.status}: ${await res.text()}`);
+    const body = await res.text();
+    const hint = apiErrorHint(res.status);
+    throw new Error(`Vercel API ${res.status}: ${body}${hint}`);
   }
 
   const remaining = res.headers.get("X-RateLimit-Remaining");
@@ -37,12 +39,23 @@ export async function vercel(
   return await res.json();
 }
 
+function apiErrorHint(status: number): string {
+  switch (status) {
+    case 401: return "\n  hint: check VERCEL_TOKEN or run `vercel login`";
+    case 403: return "\n  hint: token may lack scope, or wrong team context";
+    case 404: return "\n  hint: resource not found — check project ID or deployment URL";
+    case 429: return "\n  hint: rate limited — wait and retry";
+    default: return "";
+  }
+}
+
 export async function vercelStream(path: string): Promise<Response> {
   const { url, init } = await buildRequest(path);
   const res = await fetch(url, init);
 
   if (!res.ok) {
-    throw new Error(`Vercel API ${res.status}: ${await res.text()}`);
+    const body = await res.text();
+    throw new Error(`Vercel API ${res.status}: ${body}${apiErrorHint(res.status)}`);
   }
 
   return res;

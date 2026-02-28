@@ -30,7 +30,16 @@ export function registerLs(program: Command) {
       }
 
       if (!data.deployments?.length) {
-        console.log("No deployments found");
+        const scope = [
+          `limit=${opts.limit}`,
+          config.projectId ? `project=${config.projectId}` : "all projects",
+          opts.state ? `state=${opts.state}` : null,
+          opts.prod ? "prod only" : null,
+        ].filter(Boolean).join(", ");
+        console.error(`No deployments found (${scope})`);
+        if (config.projectId) {
+          console.error("  hint: try --limit 50 or check project with vx ls --json");
+        }
         return;
       }
 
