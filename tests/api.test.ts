@@ -61,6 +61,30 @@ describe("vercel()", () => {
     expect(vercel("/bad")).rejects.toThrow("Vercel API 404: not found");
   });
 
+  test("403 with invalidToken gives token-expired hint", async () => {
+    mockHandler = () => new Response(
+      JSON.stringify({ error: { code: "forbidden", message: "Not authorized", invalidToken: true } }),
+      { status: 403 }
+    );
+
+    expect(vercel("/bad")).rejects.toThrow("token is invalid or expired");
+  });
+
+  test("403 without invalidToken gives scope hint", async () => {
+    mockHandler = () => new Response(
+      JSON.stringify({ error: { code: "forbidden", message: "Not authorized" } }),
+      { status: 403 }
+    );
+
+    expect(vercel("/bad")).rejects.toThrow("token may lack scope");
+  });
+
+  test("401 gives VERCEL_TOKEN hint", async () => {
+    mockHandler = () => new Response("unauthorized", { status: 401 });
+
+    expect(vercel("/bad")).rejects.toThrow("check VERCEL_TOKEN");
+  });
+
   test("warns when rate limit remaining < 10", async () => {
     const spy = spyOn(console, "error").mockImplementation(() => {});
     mockHandler = () =>

@@ -33,7 +33,7 @@ vx reads your existing Vercel credentials — zero config if you've used `vercel
 2. `~/.local/share/com.vercel.cli/auth.json` (Vercel CLI token)
 
 Team context is read from `~/.local/share/com.vercel.cli/config.json`.
-Project context is read from `.vercel/project.json` in the current directory.
+Project context is read from `.vercel/project.json` — vx walks up from the current directory to find it (works in subdirectories and git worktrees).
 
 ## Commands
 
@@ -97,14 +97,16 @@ Add this to your project's `CLAUDE.md` (or equivalent agent instructions):
 ```markdown
 ## Vercel
 
-Use `vx` instead of `vercel` CLI for deployment operations:
+Use `vx` for Vercel read operations:
 - `vx ls --json` — list deployments (pipe through jq for filtering)
 - `vx logs build <url> --no-follow --timeout 10000` — fetch build logs without hanging
 - `vx logs runtime <url> --no-follow --timeout 10000` — fetch runtime logs without hanging
-- `vx env --json --project <id>` — read env vars (never writes local files)
+- `vx env --json --project <name>` — read env vars (never writes local files)
 - `vx domains --json` — list domains
+- Deploy: `git push` (Vercel auto-deploys from git), then `vx ls --json` to check status
+- Auth: set `VERCEL_TOKEN` env var (get one at vercel.com/account/tokens)
 
-Always use `--json` flag for machine-readable output. Never use `vercel env pull`.
+Always use `--json` flag for machine-readable output.
 ```
 
 ## Agent Experience (AX) design principles
@@ -190,7 +192,7 @@ git clone https://github.com/airshelf/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
-bun test        # 33 tests
+bun test        # 45 tests
 ```
 
 ## License

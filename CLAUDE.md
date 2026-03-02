@@ -36,3 +36,14 @@ src/
 - `format.ts` handles all output formatting (table, JSON, colors)
 - Every command supports `--json` for machine-readable output
 - Never write to local files — read-only CLI
+
+## Design principles
+
+- 100% read-only — vx never writes to local files
+- Only `vx env` needs project ID; everything else works without it
+- Project ID: auto-detected by walking up from cwd to find `.vercel/project.json`
+- Auth: VERCEL_TOKEN env var or existing Vercel CLI auth file — no login command
+- Deploy: not vx's job — deploy via git push, check status with `vx ls`
+- Error messages: one line, stderr, actionable next step (AX #1 + #9)
+- No references to `vercel` CLI in user-facing output — vx is self-sufficient
+- All 10 AX principles must pass (see README.md) — any change that breaks one gets rejected

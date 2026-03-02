@@ -27,7 +27,7 @@ export async function vercel(
 
   if (!res.ok) {
     const body = await res.text();
-    const hint = apiErrorHint(res.status);
+    const hint = apiErrorHint(res.status, body);
     throw new Error(`Vercel API ${res.status}: ${body}${hint}`);
   }
 
@@ -39,10 +39,13 @@ export async function vercel(
   return await res.json();
 }
 
-function apiErrorHint(status: number): string {
+function apiErrorHint(status: number, body?: string): string {
   switch (status) {
-    case 401: return "\n  hint: check VERCEL_TOKEN or run `vercel login`";
-    case 403: return "\n  hint: token may lack scope, or wrong team context";
+    case 401: return "\n  hint: check VERCEL_TOKEN — get one at vercel.com/account/tokens";
+    case 403:
+      if (body?.includes("invalidToken"))
+        return "\n  hint: token is invalid or expired — set VERCEL_TOKEN or get a new one at vercel.com/account/tokens";
+      return "\n  hint: token may lack scope, or wrong team context";
     case 404: return "\n  hint: resource not found — check project ID or deployment URL";
     case 429: return "\n  hint: rate limited — wait and retry";
     default: return "";
@@ -55,7 +58,7 @@ export async function vercelStream(path: string): Promise<Response> {
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Vercel API ${res.status}: ${body}${apiErrorHint(res.status)}`);
+    throw new Error(`Vercel API ${res.status}: ${body}${apiErrorHint(res.status, body)}`);
   }
 
   return res;

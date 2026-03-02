@@ -1,5 +1,5 @@
 import { homedir } from "os";
-import { join } from "path";
+import { join, dirname } from "path";
 
 export async function getConfig(): Promise<{
   token: string;
@@ -22,7 +22,7 @@ export async function getConfig(): Promise<{
 
   if (!token) {
     throw new Error(
-      "No Vercel token found. Set VERCEL_TOKEN or log in with `vercel login`."
+      "No Vercel token found. Set VERCEL_TOKEN — get one at vercel.com/account/tokens"
     );
   }
 
@@ -37,13 +37,19 @@ export async function getConfig(): Promise<{
     teamId = config.currentTeam;
   } catch {}
 
-  // Project: optional, from local .vercel/project.json
+  // Project: optional, walk up from cwd to find .vercel/project.json
   let projectId: string | undefined;
-  try {
-    const projectPath = join(process.cwd(), ".vercel/project.json");
-    const project = await Bun.file(projectPath).json();
-    projectId = project.projectId;
-  } catch {}
+  let dir = process.cwd();
+  while (true) {
+    try {
+      const project = await Bun.file(join(dir, ".vercel/project.json")).json();
+      projectId = project.projectId;
+      break;
+    } catch {}
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
 
   return { token, teamId, projectId };
 }
