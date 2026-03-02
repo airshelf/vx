@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 let server: ReturnType<typeof Bun.serve>;
+let deploymentCallCount = 0;
 
 beforeAll(() => {
   server = Bun.serve({
@@ -8,6 +9,20 @@ beforeAll(() => {
       const url = new URL(req.url);
 
       if (url.pathname === "/v6/deployments") {
+        deploymentCallCount++;
+        // If "wait-test" marker is in query, simulate BUILDING → READY
+        if (url.searchParams.get("state") === "BUILDING_THEN_READY") {
+          const state = deploymentCallCount <= 1 ? "BUILDING" : "READY";
+          return Response.json({
+            deployments: [{
+              url: "wait-test.vercel.app",
+              state, readyState: state,
+              created: Date.now() - 10000,
+              creator: { username: "testuser" },
+              meta: { githubCommitRef: "main" },
+            }],
+          });
+        }
         return Response.json({
           deployments: [
             {
@@ -134,6 +149,13 @@ describe("ls command", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain("test-app-abc123.vercel.app");
     expect(stdout).toContain("testuser");
+  });
+
+  test("ls --wait exits 0 when deployment is READY", async () => {
+    const { stdout, exitCode } = await runCli("ls", "--wait", "--json");
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.deployments[0].readyState).toBe("READY");
   });
 });
 

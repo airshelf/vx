@@ -45,6 +45,8 @@ vx ls --prod             # production only
 vx ls --limit 20         # more results
 vx ls --state ERROR      # filter by state
 vx ls --json             # raw JSON output
+vx ls --wait             # poll until latest deployment is READY or ERROR
+vx ls --wait --json      # same, with JSON output
 ```
 
 ### `vx logs build <url>` — build logs
@@ -108,6 +110,7 @@ Add this to your project's `CLAUDE.md` (or equivalent agent instructions):
 
 Use `vx` for Vercel read operations:
 - `vx ls --json` — list deployments (pipe through jq for filtering)
+- `vx ls --wait --json` — poll until latest deployment is READY or ERROR
 - `vx logs build <url> --no-follow --timeout 10000` — fetch build logs without hanging
 - `vx logs runtime <url> --no-follow --timeout 10000` — fetch runtime logs without hanging
 - `vx env --json --project <name>` — read env vars (never writes local files)
@@ -203,7 +206,7 @@ git clone https://github.com/airshelf/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
-bun test        # 49 tests
+bun test        # 50 tests
 ```
 
 ## License
