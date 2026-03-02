@@ -16,6 +16,7 @@ src/
   config.ts         # Auth token + team + project resolution
   api.ts            # Vercel REST API client (fetch-based)
   format.ts         # Table/color output helpers
+  telemetry.ts      # Usage logging (flag frequency, retry chains)
   commands/
     ls.ts           # List deployments
     logs.ts         # Stream deployment logs
