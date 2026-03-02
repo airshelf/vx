@@ -81,6 +81,15 @@ vx domains --limit 50   # more results
 vx domains --json       # raw JSON
 ```
 
+### `vx projects` — list or find projects
+
+```bash
+vx projects                    # list all projects
+vx projects --json             # raw JSON
+vx projects my-app             # find project by name or ID
+vx projects my-app --json      # project details as JSON
+```
+
 ## Piping
 
 Every command supports `--json` for machine-readable output:
@@ -103,6 +112,8 @@ Use `vx` for Vercel read operations:
 - `vx logs runtime <url> --no-follow --timeout 10000` — fetch runtime logs without hanging
 - `vx env --json --project <name>` — read env vars (never writes local files)
 - `vx domains --json` — list domains
+- `vx projects --json` — list projects
+- `vx projects <name> --json` — find project by name or ID
 - Deploy: `git push` (Vercel auto-deploys from git), then `vx ls --json` to check status
 - Auth: set `VERCEL_TOKEN` env var (get one at vercel.com/account/tokens)
 
@@ -192,7 +203,7 @@ git clone https://github.com/airshelf/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
-bun test        # 45 tests
+bun test        # 49 tests
 ```
 
 ## License

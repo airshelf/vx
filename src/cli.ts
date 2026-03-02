@@ -5,6 +5,7 @@ import { registerLs } from "./commands/ls.ts";
 import { registerLogs } from "./commands/logs.ts";
 import { registerEnv } from "./commands/env.ts";
 import { registerDomains } from "./commands/domains.ts";
+import { registerProjects } from "./commands/projects.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
 const program = new Command();
@@ -12,7 +13,7 @@ const program = new Command();
 program
   .name("vx")
   .version(pkg.version)
-  .description("Fast Vercel CLI — read-only (ls, logs, env, domains)");
+  .description("Fast Vercel CLI — read-only (ls, logs, env, domains, projects)");
 
 program
   .command("usage")
@@ -23,6 +24,7 @@ registerLs(program);
 registerLogs(program);
 registerEnv(program);
 registerDomains(program);
+registerProjects(program);
 
 // Unknown command handler — AX #9: guide on failure
 const unknownHints: Record<string, string> = {

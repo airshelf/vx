@@ -22,6 +22,7 @@ src/
     logs.ts         # Stream deployment logs
     env.ts          # List/manage env vars
     domains.ts      # List domains
+    projects.ts     # List/find projects
 ```
 
 ## Dependencies

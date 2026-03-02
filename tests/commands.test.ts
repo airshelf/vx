@@ -53,6 +53,35 @@ beforeAll(() => {
         });
       }
 
+      if (url.pathname === "/v9/projects") {
+        return Response.json({
+          projects: [
+            {
+              id: "prj_abc123",
+              name: "my-app",
+              framework: "nextjs",
+              updatedAt: Date.now() - 3600000,
+            },
+            {
+              id: "prj_def456",
+              name: "api-service",
+              framework: null,
+              updatedAt: Date.now() - 86400000,
+            },
+          ],
+        });
+      }
+
+      if (url.pathname === "/v9/projects/my-app") {
+        return Response.json({
+          id: "prj_abc123",
+          name: "my-app",
+          framework: "nextjs",
+          updatedAt: Date.now() - 3600000,
+          link: { type: "github", org: "testorg", repo: "my-app" },
+        });
+      }
+
       if (url.pathname === "/v5/domains") {
         return Response.json({
           domains: [
@@ -147,6 +176,41 @@ describe("env command", () => {
     );
     expect(exitCode).toBe(0);
     expect(stdout).toContain("DATABASE_URL");
+  });
+});
+
+describe("projects command", () => {
+  test("projects --json returns projects array", async () => {
+    const { stdout, exitCode } = await runCli("projects", "--json");
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.projects).toBeArrayOfSize(2);
+    expect(data.projects[0].name).toBe("my-app");
+  });
+
+  test("projects table mode shows name and ID", async () => {
+    const { stdout, exitCode } = await runCli("projects");
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("my-app");
+    expect(stdout).toContain("prj_abc123");
+    expect(stdout).toContain("api-service");
+  });
+
+  test("projects <name> --json returns single project", async () => {
+    const { stdout, exitCode } = await runCli("projects", "my-app", "--json");
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.id).toBe("prj_abc123");
+    expect(data.name).toBe("my-app");
+  });
+
+  test("projects <name> shows project details", async () => {
+    const { stdout, exitCode } = await runCli("projects", "my-app");
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("my-app");
+    expect(stdout).toContain("prj_abc123");
+    expect(stdout).toContain("nextjs");
+    expect(stdout).toContain("testorg/my-app");
   });
 });
 
