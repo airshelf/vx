@@ -12,7 +12,7 @@ export function registerDomains(program: Command) {
       const data = await vercel(`/v5/domains?limit=${opts.limit}`);
 
       if (opts.json) {
-        outputJson(data);
+        outputJson(data.domains);
         return;
       }
 

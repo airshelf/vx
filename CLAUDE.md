@@ -42,13 +42,13 @@ src/
 
 ## JSON output shapes (for jq)
 
-All `--json` output wraps data in a named key — never a bare array:
+All `--json` output is bare arrays — no wrapper objects:
 ```bash
-vx ls --json        | jq '.deployments[0]'     # {url, state, created, ...}
-vx env --json       | jq '.envs[]'             # {key, value, target, ...}
-vx projects --json  | jq '.projects[]'         # {id, name, framework, ...}
-vx domains --json   | jq '.domains[]'          # {name, verified, ...}
-vx projects X --json| jq '.name'               # single project (no wrapper)
+vx ls --json        | jq '.[0]'        # {url, state, created, ...}
+vx env --json       | jq '.[]'         # {key, value, target, ...}
+vx projects --json  | jq '.[]'         # {id, name, framework, ...}
+vx domains --json   | jq '.[]'         # {name, verified, ...}
+vx projects X --json| jq '.name'       # single object (not wrapped)
 ```
 
 Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).

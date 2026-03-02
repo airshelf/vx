@@ -32,7 +32,7 @@ export function registerEnv(program: Command) {
       }
 
       if (opts.json) {
-        outputJson({ envs });
+        outputJson(envs);
         return;
       }
 

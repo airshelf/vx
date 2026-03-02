@@ -151,12 +151,12 @@ async function runCli(
 }
 
 describe("ls command", () => {
-  test("ls --json returns deployments array", async () => {
+  test("ls --json returns bare array", async () => {
     const { stdout, exitCode } = await runCli("ls", "--json");
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.deployments).toBeArrayOfSize(1);
-    expect(data.deployments[0].url).toBe("test-app-abc123.vercel.app");
+    expect(data).toBeArrayOfSize(1);
+    expect(data[0].url).toBe("test-app-abc123.vercel.app");
   });
 
   test("ls table mode shows deployment URL and creator", async () => {
@@ -170,7 +170,7 @@ describe("ls command", () => {
     const { stdout, exitCode } = await runCli("ls", "--wait", "--json");
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.deployments[0].readyState).toBe("READY");
+    expect(data[0].readyState).toBe("READY");
   });
 
   test("ls --wait --json suppresses progress on stderr", async () => {
@@ -234,7 +234,7 @@ describe("ls command", () => {
 });
 
 describe("env command", () => {
-  test("env --json returns all envs", async () => {
+  test("env --json returns bare array", async () => {
     const { stdout, exitCode } = await runCli(
       "env",
       "--json",
@@ -243,7 +243,7 @@ describe("env command", () => {
     );
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.envs).toBeArrayOfSize(3);
+    expect(data).toBeArrayOfSize(3);
   });
 
   test("env --target production --json filters to production envs", async () => {
@@ -257,8 +257,8 @@ describe("env command", () => {
     );
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.envs).toBeArrayOfSize(2);
-    const keys = data.envs.map((e: any) => e.key);
+    expect(data).toBeArrayOfSize(2);
+    const keys = data.map((e: any) => e.key);
     expect(keys).toContain("DATABASE_URL");
     expect(keys).toContain("PUBLIC_KEY");
     expect(keys).not.toContain("DEV_ONLY");
@@ -276,12 +276,12 @@ describe("env command", () => {
 });
 
 describe("projects command", () => {
-  test("projects --json returns projects array", async () => {
+  test("projects --json returns bare array", async () => {
     const { stdout, exitCode } = await runCli("projects", "--json");
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.projects).toBeArrayOfSize(2);
-    expect(data.projects[0].name).toBe("my-app");
+    expect(data).toBeArrayOfSize(2);
+    expect(data[0].name).toBe("my-app");
   });
 
   test("projects table mode shows name and ID", async () => {
@@ -311,12 +311,12 @@ describe("projects command", () => {
 });
 
 describe("domains command", () => {
-  test("domains --json returns domains array", async () => {
+  test("domains --json returns bare array", async () => {
     const { stdout, exitCode } = await runCli("domains", "--json");
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
-    expect(data.domains).toBeArrayOfSize(1);
-    expect(data.domains[0].name).toBe("example.com");
+    expect(data).toBeArrayOfSize(1);
+    expect(data[0].name).toBe("example.com");
   });
 
   test("domains table mode shows domain and registrar", async () => {

@@ -59,7 +59,7 @@ export function registerLs(program: Command) {
 
           if (TERMINAL_STATES.has(state)) {
             if (opts.json) {
-              outputJson(data);
+              outputJson(data.deployments);
             } else {
               printTable(data);
             }
@@ -79,7 +79,7 @@ export function registerLs(program: Command) {
       const data = await fetchDeployments(config, opts);
 
       if (opts.json) {
-        outputJson(data);
+        outputJson(data.deployments);
         return;
       }
 

@@ -30,7 +30,7 @@ export function registerProjects(program: Command) {
       const data = await vercel(`/v9/projects?limit=${opts.limit}`);
 
       if (opts.json) {
-        outputJson(data);
+        outputJson(data.projects);
         return;
       }
 
