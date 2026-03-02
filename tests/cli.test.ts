@@ -64,8 +64,9 @@ describe("unknown command handler", () => {
 });
 
 describe("--help", () => {
-  test("description mentions read-only", async () => {
+  test("description lists commands", async () => {
     const { stdout } = await runCli("--help");
-    expect(stdout).toContain("read-only");
+    expect(stdout).toContain("Fast Vercel CLI");
+    expect(stdout).toContain("redeploy");
   });
 });

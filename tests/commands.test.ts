@@ -122,6 +122,28 @@ beforeAll(() => {
         });
       }
 
+      if (url.pathname === "/v13/deployments" && req.method === "POST") {
+        return req.json().then((body: any) =>
+          Response.json({
+            id: "dpl_redeploy123",
+            url: "redeployed-app.vercel.app",
+            name: body.name || "test-app",
+            readyState: "QUEUED",
+            status: "QUEUED",
+            target: body.target || "production",
+          })
+        );
+      }
+
+      if (url.pathname === "/v13/deployments/get") {
+        return Response.json({
+          id: "dpl_original123",
+          name: "test-app",
+          url: "test-app-abc123.vercel.app",
+          readyState: "ERROR",
+        });
+      }
+
       return new Response("not found", { status: 404 });
     },
   });
@@ -324,5 +346,29 @@ describe("domains command", () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain("example.com");
     expect(stdout).toContain("namecheap");
+  });
+});
+
+describe("redeploy command", () => {
+  test("redeploy --json triggers redeployment", async () => {
+    const { stdout, exitCode } = await runCli("redeploy", "--json");
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.url).toBe("redeployed-app.vercel.app");
+    expect(data.readyState).toBe("QUEUED");
+  });
+
+  test("redeploy table mode shows status and URL", async () => {
+    const { stdout, stderr, exitCode } = await runCli("redeploy");
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("redeployed-app.vercel.app");
+    expect(stderr).toContain("vx ls --wait");
+  });
+
+  test("redeploy with URL resolves deployment", async () => {
+    const { stdout, exitCode } = await runCli("redeploy", "test-app-abc123.vercel.app", "--json");
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.url).toBe("redeployed-app.vercel.app");
   });
 });

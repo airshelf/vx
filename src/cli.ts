@@ -6,6 +6,7 @@ import { registerLogs } from "./commands/logs.ts";
 import { registerEnv } from "./commands/env.ts";
 import { registerDomains } from "./commands/domains.ts";
 import { registerProjects } from "./commands/projects.ts";
+import { registerRedeploy } from "./commands/redeploy.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
 const program = new Command();
@@ -13,7 +14,7 @@ const program = new Command();
 program
   .name("vx")
   .version(pkg.version)
-  .description("Fast Vercel CLI — read-only (ls, logs, env, domains, projects)");
+  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy)");
 
 program
   .command("usage")
@@ -25,10 +26,11 @@ registerLogs(program);
 registerEnv(program);
 registerDomains(program);
 registerProjects(program);
+registerRedeploy(program);
 
 // Unknown command handler — AX #9: guide on failure
 const unknownHints: Record<string, string> = {
-  deploy: "vx is read-only — deploy via git push, then: vx ls --json",
+  deploy: "deploy via git push, then: vx ls --json — or: vx redeploy",
   link: "project auto-detected from .vercel/project.json — or use: vx env --project <name>",
   login: "set VERCEL_TOKEN env var — get one at vercel.com/account/tokens",
   dev: "vx doesn't run dev servers — use next dev / framework dev command",

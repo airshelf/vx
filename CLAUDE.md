@@ -23,6 +23,7 @@ src/
     env.ts          # List/manage env vars
     domains.ts      # List domains
     projects.ts     # List/find projects
+    redeploy.ts     # Redeploy a deployment
 ```
 
 ## Dependencies
@@ -55,7 +56,7 @@ Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx l
 
 ## Design principles
 
-- 100% read-only — vx never writes to local files
+- Mostly read-only — only `vx redeploy` mutates (idempotent, triggers rebuild)
 - Only `vx env` needs project ID; everything else works without it
 - Project ID: auto-detected by walking up from cwd to find `.vercel/project.json` (works in worktrees and monorepo subdirs)
 - Auth: VERCEL_TOKEN env var or existing Vercel CLI auth file — no login command
