@@ -40,6 +40,19 @@ src/
 - Never write to local files — read-only CLI
 - `vx usage` — built-in telemetry command, shows flag frequency and retry chains
 
+## JSON output shapes (for jq)
+
+All `--json` output wraps data in a named key — never a bare array:
+```bash
+vx ls --json        | jq '.deployments[0]'     # {url, state, created, ...}
+vx env --json       | jq '.envs[]'             # {key, value, target, ...}
+vx projects --json  | jq '.projects[]'         # {id, name, framework, ...}
+vx domains --json   | jq '.domains[]'          # {name, verified, ...}
+vx projects X --json| jq '.name'               # single project (no wrapper)
+```
+
+Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).
+
 ## Design principles
 
 - 100% read-only — vx never writes to local files

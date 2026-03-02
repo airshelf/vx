@@ -23,6 +23,18 @@ beforeAll(() => {
             }],
           });
         }
+        // Simulate a BUILDING deployment for hint test
+        if (url.searchParams.get("projectId") === "prj_building") {
+          return Response.json({
+            deployments: [{
+              url: "building-app.vercel.app",
+              state: "BUILDING", readyState: "BUILDING",
+              created: Date.now() - 5000,
+              creator: { username: "testuser" },
+              meta: { githubCommitRef: "main" },
+            }],
+          });
+        }
         return Response.json({
           deployments: [
             {
@@ -119,7 +131,7 @@ afterAll(() => server.stop());
 
 async function runCli(
   ...args: string[]
-): Promise<{ stdout: string; exitCode: number }> {
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
     cwd: "/home/eo/src/vx",
     env: {
@@ -130,9 +142,12 @@ async function runCli(
     stdout: "pipe",
     stderr: "pipe",
   });
-  const stdout = await new Response(proc.stdout).text();
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
   const exitCode = await proc.exited;
-  return { stdout, exitCode };
+  return { stdout, stderr, exitCode };
 }
 
 describe("ls command", () => {
@@ -156,6 +171,65 @@ describe("ls command", () => {
     expect(exitCode).toBe(0);
     const data = JSON.parse(stdout);
     expect(data.deployments[0].readyState).toBe("READY");
+  });
+
+  test("ls --wait --json suppresses progress on stderr", async () => {
+    const { stderr, exitCode } = await runCli("ls", "--wait", "--json");
+    expect(exitCode).toBe(0);
+    expect(stderr).not.toContain("polling every");
+  });
+
+  test("ls hints --wait when deployment is BUILDING (table mode)", async () => {
+    // Create temp dir with .vercel/project.json pointing to prj_building
+    const tmpDir = `/tmp/vx-test-building-${Date.now()}`;
+    await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
+    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls"], {
+      cwd: tmpDir,
+      env: {
+        ...process.env,
+        VERCEL_TOKEN: "test-token",
+        VX_API_BASE: `http://localhost:${server.port}`,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    await proc.exited;
+    expect(stderr).toContain("use --wait to poll until READY");
+    // cleanup
+    const { unlinkSync, rmdirSync } = await import("fs");
+    unlinkSync(`${tmpDir}/.vercel/project.json`);
+    rmdirSync(`${tmpDir}/.vercel`);
+    rmdirSync(tmpDir);
+  });
+
+  test("ls --json does NOT hint about --wait (hint is table-mode only)", async () => {
+    const tmpDir = `/tmp/vx-test-building-json-${Date.now()}`;
+    await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
+    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls", "--json"], {
+      cwd: tmpDir,
+      env: {
+        ...process.env,
+        VERCEL_TOKEN: "test-token",
+        VX_API_BASE: `http://localhost:${server.port}`,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    await proc.exited;
+    expect(stderr).not.toContain("use --wait");
+    // cleanup
+    const { unlinkSync, rmdirSync } = await import("fs");
+    unlinkSync(`${tmpDir}/.vercel/project.json`);
+    rmdirSync(`${tmpDir}/.vercel`);
+    rmdirSync(tmpDir);
   });
 });
 

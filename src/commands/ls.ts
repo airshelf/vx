@@ -66,7 +66,9 @@ export function registerLs(program: Command) {
             process.exit(state === "ERROR" ? 1 : 0);
           }
 
-          console.error(`${state} ${latest.url} — polling every ${interval / 1000}s`);
+          if (!opts.json) {
+            console.error(`${state} ${latest.url} — polling every ${interval / 1000}s`);
+          }
           await Bun.sleep(interval);
         }
 
@@ -79,6 +81,15 @@ export function registerLs(program: Command) {
       if (opts.json) {
         outputJson(data);
         return;
+      }
+
+      // AX #9: guide agents toward --wait when they see BUILDING
+      if (!opts.json && !opts.wait) {
+        const latest = data.deployments?.[0];
+        const state = latest?.readyState || latest?.state;
+        if (state && !TERMINAL_STATES.has(state)) {
+          console.error(`  hint: use --wait to poll until READY: vx ls --wait --json`);
+        }
       }
 
       if (!data.deployments?.length) {
