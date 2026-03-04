@@ -17,6 +17,7 @@ src/
   api.ts            # Vercel REST API client (fetch-based)
   format.ts         # Table/color output helpers
   telemetry.ts      # Usage logging (flag frequency, retry chains)
+  mcp.ts            # MCP resource server (stdio transport)
   commands/
     ls.ts           # List deployments
     logs.ts         # Stream deployment logs
@@ -30,6 +31,7 @@ src/
 
 - `commander` — CLI subcommands and option parsing
 - `picocolors` — terminal colors
+- `@modelcontextprotocol/sdk` — MCP server implementation
 - `bun-types` (dev) — Bun TypeScript types
 
 ## Conventions
@@ -53,6 +55,26 @@ vx projects X --json| jq '.name'       # single object (not wrapped)
 ```
 
 Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).
+
+## MCP resource server
+
+`vx mcp` starts an MCP resource server on stdio. Resources instead of tools — zero schema bloat, read-only, URI-based.
+
+```
+vercel://deployments                     # latest deployments (array)
+vercel://deployments/{url}               # single deployment
+vercel://deployments/{url}/logs/build    # build logs (text)
+vercel://deployments/{url}/logs/runtime  # runtime logs (text)
+vercel://projects                        # all projects (array)
+vercel://projects/{name}                 # single project
+vercel://projects/{name}/env             # env vars (array)
+vercel://domains                         # all domains (array)
+```
+
+Configure in Claude Desktop:
+```json
+{ "mcpServers": { "vercel": { "command": "vx", "args": ["mcp"] } } }
+```
 
 ## Design principles
 

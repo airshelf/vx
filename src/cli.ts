@@ -7,6 +7,7 @@ import { registerEnv } from "./commands/env.ts";
 import { registerDomains } from "./commands/domains.ts";
 import { registerProjects } from "./commands/projects.ts";
 import { registerRedeploy } from "./commands/redeploy.ts";
+import { startMcpServer } from "./mcp.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
 const program = new Command();
@@ -14,12 +15,17 @@ const program = new Command();
 program
   .name("vx")
   .version(pkg.version)
-  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy)");
+  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy, mcp)");
 
 program
   .command("usage")
   .description("Show usage stats (agent telemetry)")
   .action(() => printUsageStats());
+
+program
+  .command("mcp")
+  .description("Start MCP resource server (stdio)")
+  .action(() => startMcpServer());
 
 registerLs(program);
 registerLogs(program);
