@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 import { vercel } from "./api.ts";
 import { getConfig } from "./config.ts";
 import pkg from "../package.json";
@@ -109,6 +110,52 @@ export async function startMcpServer() {
     async (uri, vars) => {
       const data = await vercel(`/v10/projects/${encodeURIComponent(vars.name as string)}/env`);
       return { contents: [{ uri: uri.href, mimeType: "application/json", text: json(data.envs) }] };
+    },
+  );
+
+  // --- Tool (mutation) ---
+
+  server.registerTool(
+    "redeploy",
+    {
+      title: "Redeploy",
+      description: "Re-trigger a deployment. Defaults to latest deployment, targets production.",
+      inputSchema: {
+        deploymentUrl: z.string().optional().describe("Deployment URL to redeploy (defaults to latest)"),
+        target: z.enum(["production", "preview"]).optional().describe("Deployment target (default: production)"),
+      },
+    },
+    async (args) => {
+      const config = await getConfig();
+      const target = args.target || "production";
+      let deploymentId: string;
+      let name: string;
+
+      if (args.deploymentUrl) {
+        const data = await vercel(`/v13/deployments/get?url=${encodeURIComponent(args.deploymentUrl)}`);
+        deploymentId = data.id;
+        name = data.name;
+      } else {
+        let query = "/v6/deployments?limit=1";
+        if (config.projectId) query += `&projectId=${config.projectId}`;
+        const data = await vercel(query);
+        const latest = data.deployments?.[0];
+        if (!latest) return { content: [{ type: "text" as const, text: "error: no deployments found" }] };
+        deploymentId = latest.uid;
+        name = latest.name;
+      }
+
+      const result = await vercel("/v13/deployments", {
+        method: "POST",
+        body: { name, deploymentId, target },
+      });
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: json({ url: result.url, state: result.readyState || "QUEUED", target }),
+        }],
+      };
     },
   );
 
