@@ -48,12 +48,18 @@ type fsTree struct {
 	children map[string]*fsTree
 	isDir    bool
 	// For files: the MCP URI to read.
-	uri      string
+	uri string
 	// For template dirs: URI template pattern, e.g. "vercel://deployments/{url}"
 	template string
 	param    string // template parameter name, e.g. "url"
 	// For _template_leaf: the filename to use inside param dirs.
 	leafName string
+	// For nested template dirs (e.g. {owner}/{repo}): the child of a resolved
+	// param lookup should itself be a template dir with these settings.
+	// "nested" children are the files/dirs that belong at the nested level.
+	nestedParam    string
+	nestedChildren map[string]*fsTree
+	nestedLeaf     *fsTree // _template_leaf for nested level
 }
 
 func newFSTree() *fsTree {
@@ -152,25 +158,59 @@ func singularize(s string) string {
 
 // registerTemplateTail registers the path structure after a template parameter.
 // For "vercel://deployments/{url}/logs/build", after {url}, we register logs/build.
+// For "github://repos/{owner}/{repo}/issues", handles nested params recursively.
 func registerTemplateTail(paramDir *fsTree, remaining []string, uriTemplate string, param string, scheme string) {
-	// This defines the structure inside each {param} directory.
-	// Store it as a "template subtree" on the paramDir.
+	for i, p := range remaining {
+		if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
+			nestedParam := p[1 : len(p)-1]
+			// Store nested template info on the parent template dir.
+			// These get applied when lookupTemplateChild resolves the first param.
+			paramDir.nestedParam = nestedParam
+			if paramDir.nestedChildren == nil {
+				paramDir.nestedChildren = make(map[string]*fsTree)
+			}
+			if i+1 < len(remaining) {
+				// Files/dirs after the nested param.
+				registerNestedTail(paramDir, remaining[i+1:], uriTemplate)
+			} else {
+				// Template ends at the nested param level.
+				paramDir.nestedLeaf = &fsTree{
+					children: make(map[string]*fsTree),
+					uri:      uriTemplate,
+					leafName: nestedParam,
+				}
+			}
+			return
+		}
+		// Non-param segments: these are direct children of the param dir.
+		if i == len(remaining)-1 {
+			paramDir.addFile(p, uriTemplate)
+		} else {
+			paramDir = paramDir.ensureDir(p)
+		}
+	}
+}
+
+// registerNestedTail adds files/dirs that go inside the nested template dir.
+func registerNestedTail(paramDir *fsTree, remaining []string, uriTemplate string) {
 	node := paramDir
 	for i, p := range remaining {
 		if i == len(remaining)-1 {
-			// Leaf — this is a readable file.
-			ext := ""
-			if !strings.Contains(p, ".") {
-				// Determine extension from context.
-				if strings.Contains(uriTemplate, "/logs/") {
-					ext = "" // logs are plain text, no extension
-				} else {
-					ext = "" // keep it simple, no extension for drill-down resources
-				}
+			node.nestedChildren[p] = &fsTree{
+				children: make(map[string]*fsTree),
+				uri:      uriTemplate,
 			}
-			node.addFile(p+ext, uriTemplate)
 		} else {
-			node = node.ensureDir(p)
+			// Intermediate dir in nested children.
+			if child, ok := node.nestedChildren[p]; ok {
+				child.isDir = true
+				node = &fsTree{children: child.children, isDir: true}
+			} else {
+				child := newFSTree()
+				child.isDir = true
+				node.nestedChildren[p] = child
+				node = child
+			}
 		}
 	}
 }
@@ -249,26 +289,35 @@ func (d *dirNode) buildInode(ctx context.Context, name string, t *fsTree, out *f
 }
 
 func (d *dirNode) lookupTemplateChild(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	// Build a synthetic directory for this parameter value.
 	params := copyParams(d.paramValues)
 	params[d.tree.param] = name
 
-	// The child directory has the same children structure as the template dir,
-	// minus the template marker (since the param is now resolved).
 	childTree := newFSTree()
 	childTree.isDir = true
 
-	// Copy static children.
-	for k, v := range d.tree.children {
-		if k == "_template_leaf" {
-			continue
+	// If there's a nested template param (e.g. {owner}/{repo}),
+	// the child dir becomes another template dir for the nested param.
+	if d.tree.nestedParam != "" {
+		childTree.template = d.tree.template
+		childTree.param = d.tree.nestedParam
+		// Copy nested children (files that go inside the nested param dir).
+		for k, v := range d.tree.nestedChildren {
+			childTree.children[k] = v
 		}
-		childTree.children[k] = v
-	}
-
-	// If there's a _template_leaf, add a file for the direct resource.
-	if leaf, ok := d.tree.children["_template_leaf"]; ok {
-		childTree.addFile(leaf.leafName, leaf.uri)
+		if d.tree.nestedLeaf != nil {
+			childTree.children["_template_leaf"] = d.tree.nestedLeaf
+		}
+	} else {
+		// No nesting — copy static children directly.
+		for k, v := range d.tree.children {
+			if k == "_template_leaf" {
+				continue
+			}
+			childTree.children[k] = v
+		}
+		if leaf, ok := d.tree.children["_template_leaf"]; ok {
+			childTree.addFile(leaf.leafName, leaf.uri)
+		}
 	}
 
 	out.Mode = syscall.S_IFDIR | 0555
