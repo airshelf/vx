@@ -1,6 +1,6 @@
 # vx
 
-Fast, agent-friendly Vercel CLI replacement. Wraps the Vercel REST API directly — no SDK, no framework overhead. Designed for both humans and AI agents.
+Fast, agent-friendly Vercel CLI replacement. Wraps the Vercel REST API directly — no SDK, no framework overhead. Designed for both humans and AI agents. Includes an MCP resource server for zero-schema AI integration.
 
 ## Why?
 
@@ -92,35 +92,85 @@ vx projects my-app             # find project by name or ID
 vx projects my-app --json      # project details as JSON
 ```
 
+### `vx redeploy` — redeploy a deployment
+
+```bash
+vx redeploy                              # redeploy latest deployment
+vx redeploy my-app-abc123.vercel.app     # redeploy specific URL
+vx redeploy --target preview             # target preview instead of production
+vx redeploy --json                       # raw JSON
+```
+
+### `vx mcp` — MCP resource server
+
+Starts an MCP resource server on stdio. Exposes Vercel data as **resources instead of tools** — zero schema bloat, read-only, URI-based.
+
+```
+vercel://deployments                     # latest deployments (array)
+vercel://deployments/{url}               # single deployment
+vercel://deployments/{url}/logs/build    # build logs (text)
+vercel://deployments/{url}/logs/runtime  # runtime logs (text)
+vercel://projects                        # all projects (array)
+vercel://projects/{name}                 # single project
+vercel://projects/{name}/env             # env vars (array)
+vercel://domains                         # all domains (array)
+```
+
+**Why resources instead of tools?** A typical MCP tool server ships dozens of tool definitions with full JSON schemas — ~20,000+ tokens of context consumed before the agent asks a single question. vx's resource catalog is ~300 tokens. That's a **65x reduction** in context cost. And since resources are read-only URIs, there are no parameters for agents to hallucinate.
+
+Configure in Claude Code:
+
+```bash
+claude mcp add -s user vx-resources -- vx mcp
+```
+
+Or in Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{ "mcpServers": { "vercel": { "command": "vx", "args": ["mcp"] } } }
+```
+
 ## Piping
 
 Every command supports `--json` for machine-readable output:
 
 ```bash
-vx ls --json | jq '.deployments[0].url'
-vx env --json --decrypt | jq '.envs[] | select(.key == "DATABASE_URL") | .value'
+vx ls --json | jq '.[0].url'
+vx env --json --decrypt | jq '.[] | select(.key == "DATABASE_URL") | .value'
+vx projects --json | jq '.[].name'
+vx domains --json | jq '.[].name'
 ```
+
+All `--json` output is bare arrays — no wrapper objects. Pipe directly to `jq '.[0]'`.
 
 ## Use with AI agents
 
-Add this to your project's `CLAUDE.md` (or equivalent agent instructions):
+**Option 1: MCP resources** (recommended for Claude Code / Claude Desktop)
+
+```bash
+claude mcp add -s user vx-resources -- vx mcp
+```
+
+The agent reads Vercel data as MCP resources (`vercel://deployments`, `vercel://projects/{name}/env`, etc.) — no tool schemas, no parameters, no jq. ~300 tokens of context vs ~20k for a typical MCP tool server.
+
+**Option 2: CLI** — add this to your project's `CLAUDE.md`:
 
 ```markdown
 ## Vercel
 
-Use `vx` for Vercel read operations:
-- `vx ls --json` — list deployments (pipe through jq for filtering)
+Use `vx` for Vercel operations:
+- `vx ls --json` — list deployments
 - `vx ls --wait --json` — poll until latest deployment is READY or ERROR
-- `vx logs build <url> --no-follow --timeout 10000` — fetch build logs without hanging
-- `vx logs runtime <url> --no-follow --timeout 10000` — fetch runtime logs without hanging
-- `vx env --json --project <name>` — read env vars (never writes local files)
-- `vx domains --json` — list domains
-- `vx projects --json` — list projects
-- `vx projects <name> --json` — find project by name or ID
-- Deploy: `git push` (Vercel auto-deploys from git), then `vx ls --json` to check status
+- `vx logs build <url> --no-follow --timeout 10000` — build logs
+- `vx logs runtime <url> --no-follow --timeout 10000` — runtime logs
+- `vx env --json --project <name>` — env vars (read-only, never writes local files)
+- `vx domains --json` — domains
+- `vx projects --json` — projects
+- `vx redeploy` — redeploy latest deployment (or specify URL)
+- Deploy: `git push` (Vercel auto-deploys), then `vx ls --wait --json`
 - Auth: set `VERCEL_TOKEN` env var (get one at vercel.com/account/tokens)
-
-Always use `--json` flag for machine-readable output.
+- All --json output is bare arrays — use `jq '.[0]'` not `jq '.deployments[0]'`
+- Never `2>&1 | jq` — stderr hints corrupt JSON parsing
 ```
 
 ## Agent Experience (AX) design principles
@@ -159,7 +209,7 @@ The original `vercel logs` hangs silently for 5 minutes. vx has a `--timeout` fl
 
 **6. Never mutate implicitly**
 
-vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. An agent using vx can't accidentally corrupt project state.
+vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. The only mutation is `vx redeploy`, which re-triggers an existing deployment — no arbitrary code, no repo IDs, no parameters to hallucinate.
 
 **7. Read existing state, don't create new state**
 
@@ -190,12 +240,13 @@ Building a CLI tool for AI agents? Check these:
 | Deterministic exit codes | 0 = success, non-zero = failure — binary signals |
 | `--timeout` on network ops | Silent hangs waste context and money |
 | Clear error messages | Agents retry based on error text — make it parseable |
-| Read-only by default | Destructive ops need explicit flags |
+| Read-only by default | Mutations need explicit commands — constrain the surface |
 | Idempotent operations | Safe to retry — agents are iterative |
 | `--help` is the API contract | Agents discover capabilities from help text |
 | Fast startup | Sub-100ms — dozens of calls per session |
 | Guide on empty results | No output = dead end — print scope + suggestions to stderr |
 | Log usage locally | You can't improve what you can't observe — JSONL + `--usage` |
+| Remove the problem, don't document it | If agents consistently misuse an interface, fix the interface |
 
 The meta-insight: the features developers are proudest of for humans (interactive wizards, spinners, guided flows) become the biggest obstacles for agents. **Good AX means boring: predictable, structured, silent, deterministic.**
 
@@ -206,7 +257,7 @@ git clone https://github.com/airshelf/vx.git
 cd vx
 bun install
 bun run build   # produces ./vx binary
-bun test        # 50 tests
+bun test        # 56 tests
 ```
 
 ## License
