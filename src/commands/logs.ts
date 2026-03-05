@@ -134,16 +134,22 @@ async function queryAxiomLogs(opts: {
     process.exit(0);
   }
 
-  // Deduplicate: Axiom often logs both a request event and a function log
-  // with the same timestamp+path+status. Keep the one with a message.
-  const seen = new Set<string>();
-  const deduped = matches.filter((m: any) => {
+  // Deduplicate: Axiom logs both a request event (empty message) and a
+  // function log (with message) at the same timestamp+path+status.
+  // Two-pass: find keys that have a message, then drop empty dupes.
+  const keyed = matches.map((m: any) => {
     const d = m.data || {};
-    const key = `${m._time}|${d.request?.path}|${d.request?.statusCode}`;
-    if (!d.message && seen.has(key)) return false;
+    return { m, key: `${m._time}|${d.request?.path}|${d.request?.statusCode}`, hasMsg: !!d.message };
+  });
+  const hasMsg = new Set(keyed.filter(e => e.hasMsg).map(e => e.key));
+  const seen = new Set<string>();
+  const deduped = keyed.filter(({ m, key, hasMsg: has }) => {
+    if (seen.has(key)) return false;
+    // Drop empty-message entry if a same-key entry with message exists
+    if (!has && hasMsg.has(key)) return false;
     seen.add(key);
     return true;
-  });
+  }).map(e => e.m);
 
   // Reverse to show oldest first
   deduped.reverse();
