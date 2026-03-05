@@ -53,3 +53,53 @@ export async function getConfig(): Promise<{
 
   return { token, teamId, projectId };
 }
+
+/**
+ * Get Axiom token for runtime log queries.
+ * Checks: AXIOM_TOKEN env var > ~/.config/axiom/token
+ */
+export async function getAxiomToken(): Promise<string> {
+  let token = process.env.AXIOM_TOKEN;
+
+  if (!token) {
+    try {
+      const tokenPath = join(homedir(), ".config/axiom/token");
+      token = (await Bun.file(tokenPath).text()).trim();
+    } catch {}
+  }
+
+  if (!token) {
+    throw new Error(
+      "No Axiom token found. Set AXIOM_TOKEN or create ~/.config/axiom/token"
+    );
+  }
+
+  return token;
+}
+
+/**
+ * Resolve a project name or ID to a project ID.
+ * If input looks like a project ID (starts with prj_), use it directly.
+ * Otherwise, search by name.
+ */
+export async function resolveProjectId(
+  config: { token: string; teamId?: string },
+  nameOrId: string
+): Promise<string> {
+  if (nameOrId.startsWith("prj_")) return nameOrId;
+
+  const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
+  const teamQuery = config.teamId ? `&teamId=${config.teamId}` : "";
+  const res = await fetch(
+    `${BASE}/v9/projects?search=${encodeURIComponent(nameOrId)}${teamQuery}`,
+    { headers: { Authorization: `Bearer ${config.token}` } }
+  );
+  const data = await res.json() as any;
+  const match = data.projects?.find(
+    (p: any) => p.name === nameOrId || p.id === nameOrId
+  );
+  if (!match) {
+    throw new Error(`Project not found: ${nameOrId}`);
+  }
+  return match.id;
+}

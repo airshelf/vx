@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import pc from "picocolors";
-import { getConfig } from "../config.ts";
+import { getConfig, getAxiomToken } from "../config.ts";
 
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
@@ -88,12 +88,7 @@ async function queryAxiomLogs(opts: {
   limit: string;
   json: boolean;
 }) {
-  const token = process.env.AXIOM_TOKEN;
-  if (!token) {
-    console.error("AXIOM_TOKEN not set");
-    console.error("  hint: export AXIOM_TOKEN=xaat-...");
-    process.exit(1);
-  }
+  const token = await getAxiomToken();
 
   const minutes = parseInt(opts.minutes);
   const limit = parseInt(opts.limit);
