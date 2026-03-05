@@ -165,6 +165,9 @@ async function queryAxiomLogs(opts: {
     // Skip empty entries
     if (!msg && !path) continue;
 
+    // Skip static assets unless explicitly filtered
+    if (!opts.path && !opts.filter && /^\/_next\/|^\/favicon|^\/_vercel\/|\.woff2?$|\.css\?|\.js\?/.test(path)) continue;
+
     // Truncate long messages (stack traces, huge JSON errors)
     const truncMsg = msg.length > 200 ? msg.slice(0, 200) + "…" : msg;
 
