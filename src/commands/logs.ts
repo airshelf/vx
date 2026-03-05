@@ -134,35 +134,50 @@ async function queryAxiomLogs(opts: {
     process.exit(0);
   }
 
-  // Reverse to show oldest first
-  matches.reverse();
-
-  for (const m of matches) {
+  // Deduplicate: Axiom often logs both a request event and a function log
+  // with the same timestamp+path+status. Keep the one with a message.
+  const seen = new Set<string>();
+  const deduped = matches.filter((m: any) => {
     const d = m.data || {};
+    const key = `${m._time}|${d.request?.path}|${d.request?.statusCode}`;
+    if (!d.message && seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Reverse to show oldest first
+  deduped.reverse();
+
+  let printed = 0;
+  for (const m of deduped) {
+    const d = m.data || {};
+    const msg = d.message || "";
+    const path = d.request?.path || "";
+    const status = d.request?.statusCode;
+    const level = d.level || "info";
+
+    // Skip empty entries
+    if (!msg && !path) continue;
+
+    // Truncate long messages (stack traces, huge JSON errors)
+    const truncMsg = msg.length > 200 ? msg.slice(0, 200) + "…" : msg;
+
     if (opts.json) {
       console.log(JSON.stringify({
         time: m._time,
         level: d.level,
-        message: d.message,
+        message: msg,
         path: d.request?.path,
-        status: d.request?.statusCode,
+        status,
         method: d.request?.method,
-        duration: d.proxy?.duration,
       }));
     } else {
       const ts = new Date(m._time).toLocaleTimeString();
-      const path = d.request?.path || "";
-      const status = d.request?.statusCode;
-      const msg = d.message || "";
-      const level = d.level || "info";
-
-      // Skip noise: empty messages without a path
-      if (!msg && !path) continue;
 
       const statusStr = status
         ? (status >= 400 ? pc.red(String(status)) : pc.green(String(status)))
         : "";
-      const line = [statusStr, path, msg].filter(Boolean).join("  ");
+      const line = [statusStr, path, truncMsg].filter(Boolean).join("  ");
 
       const colored =
         level === "error" ? pc.red(line) :
@@ -170,9 +185,12 @@ async function queryAxiomLogs(opts: {
         line;
       console.log(`${pc.dim(ts)}  ${colored}`);
     }
+    printed++;
   }
 
-  console.error(pc.dim(`\n${matches.length} log entries (last ${minutes}m)`));
+  if (!opts.json) {
+    console.error(pc.dim(`\n${printed} log entries (last ${minutes}m)`));
+  }
 }
 
 function addStreamOptions(cmd: Command) {
