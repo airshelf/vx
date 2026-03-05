@@ -88,7 +88,12 @@ async function queryAxiomLogs(opts: {
   limit: string;
   json: boolean;
 }) {
-  const token = process.env.AXIOM_TOKEN || "xaat-2ec23b56-b968-4498-8291-b2dd38dd651e";
+  const token = process.env.AXIOM_TOKEN;
+  if (!token) {
+    console.error("AXIOM_TOKEN not set");
+    console.error("  hint: export AXIOM_TOKEN=xaat-...");
+    process.exit(1);
+  }
 
   const minutes = parseInt(opts.minutes);
   const limit = parseInt(opts.limit);
