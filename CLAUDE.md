@@ -60,22 +60,29 @@ vx projects X --json   | jq '.name'    # single object (not wrapped)
 
 Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).
 
-## MCP resource server
+## mcpfs filesystem mount
 
-`vx mcp` starts an MCP resource server on stdio. Resources instead of tools — zero schema bloat, read-only, URI-based.
+`vx mcp` serves MCP resources on stdio. Combined with mcpfs, this exposes Vercel data as a filesystem:
 
 ```
-vercel://deployments                     # latest deployments (array)
-vercel://deployments/{url}               # single deployment
-vercel://deployments/{url}/logs/build    # build logs (text)
-vercel://deployments/{url}/logs/runtime  # runtime logs (text)
-vercel://projects                        # all projects (array)
-vercel://projects/{name}                 # single project
-vercel://projects/{name}/env             # env vars (array)
-vercel://domains                         # all domains (array)
+~/mnt/vercel/
+├── deployments.json          # array of deployments
+├── deployments/<url>/        # ls to discover, cat to read
+│   ├── deployment            # single deployment JSON
+│   └── logs/{build,runtime}  # log text
+├── projects.json             # array of projects
+├── projects/<name>/          # ls to discover, cat to read
+│   ├── project               # single project JSON
+│   └── env                   # env vars JSON
+└── domains.json              # array of domains
 ```
 
-Configure in Claude Desktop:
+Service: `systemctl --user status mcpfs-vercel` (auto-starts on boot).
+Agents: use `ls` + `cat` on `~/mnt/vercel/` for reads. Use `vx` CLI only for Axiom logs, polling, and mutations.
+
+## MCP resource server (protocol)
+
+`vx mcp` also works as a standalone MCP server for Claude Desktop or other MCP clients:
 ```json
 { "mcpServers": { "vercel": { "command": "vx", "args": ["mcp"] } } }
 ```
