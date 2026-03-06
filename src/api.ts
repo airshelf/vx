@@ -1,4 +1,5 @@
 import { getConfig } from "./config.ts";
+import { hint } from "./format.ts";
 
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
@@ -33,7 +34,7 @@ export async function vercel(
 
   const remaining = res.headers.get("X-RateLimit-Remaining");
   if (remaining !== null && parseInt(remaining) < 10) {
-    console.error(`Warning: ${remaining} API calls remaining`);
+    hint(`Warning: ${remaining} API calls remaining`);
   }
 
   if (res.status === 204 || res.headers.get("content-length") === "0") return {};

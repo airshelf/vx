@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { vercel } from "../api.ts";
 import { getConfig } from "../config.ts";
-import { table, relativeTime, outputJson } from "../format.ts";
+import { table, relativeTime, outputJson, hint } from "../format.ts";
 
 async function resolveProject(opts: any) {
   const projectId = opts.project || (await getConfig()).projectId;
@@ -52,7 +52,7 @@ export function registerEnv(program: Command) {
             .map((e: any) => e.key);
           console.error(`No env var matching "${name}"`);
           if (similar.length) {
-            console.error(`  similar: ${similar.join(", ")}`);
+            hint(`  similar: ${similar.join(", ")}`);
           }
           process.exit(1);
         }
@@ -84,7 +84,7 @@ export function registerEnv(program: Command) {
         ].join(", ");
         console.error(`No environment variables found (${scope})`);
         if (opts.target) {
-          console.error("  hint: remove --target to see all environments");
+          hint("  hint: remove --target to see all environments");
         }
         return;
       }
@@ -174,7 +174,7 @@ export function registerEnv(program: Command) {
           .filter((e: any) => e.key.toLowerCase().includes(key.toLowerCase().slice(0, 3)))
           .map((e: any) => e.key);
         if (similar.length) {
-          console.error(`  similar: ${similar.join(", ")}`);
+          hint(`  similar: ${similar.join(", ")}`);
         }
         process.exit(1);
       }

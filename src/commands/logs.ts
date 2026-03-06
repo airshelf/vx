@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import pc from "picocolors";
 import { getConfig, getAxiomToken } from "../config.ts";
+import { hint } from "../format.ts";
 
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
@@ -146,8 +147,8 @@ async function queryAxiomLogs(opts: {
 
   if (!matches.length) {
     console.error(`No logs found (last ${minutes}m)`);
-    if (opts.path) console.error(`  path filter: ${opts.path}`);
-    if (opts.filter) console.error(`  text filter: ${opts.filter}`);
+    if (opts.path) hint(`  path filter: ${opts.path}`);
+    if (opts.filter) hint(`  text filter: ${opts.filter}`);
     process.exit(0);
   }
 
@@ -215,7 +216,7 @@ async function queryAxiomLogs(opts: {
   }
 
   if (!opts.json) {
-    console.error(pc.dim(`\n${printed} log entries (last ${minutes}m)`));
+    hint(pc.dim(`\n${printed} log entries (last ${minutes}m)`));
   }
 }
 

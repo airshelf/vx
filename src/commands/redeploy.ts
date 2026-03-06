@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { vercel } from "../api.ts";
 import { getConfig } from "../config.ts";
-import { outputJson } from "../format.ts";
+import { outputJson, hint } from "../format.ts";
 
 export function registerRedeploy(program: Command) {
   program
@@ -48,7 +48,7 @@ export function registerRedeploy(program: Command) {
       } else {
         const state = result.readyState || result.status || "QUEUED";
         console.log(`${state} ${result.url}`);
-        console.error("hint: use vx ls --wait --json to poll until READY");
+        hint("hint: use vx ls --wait --json to poll until READY");
       }
     });
 }

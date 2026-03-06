@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 import { vercel } from "../api.ts";
 import { getConfig, resolveProjectId } from "../config.ts";
-import { table, relativeTime, stateColor, outputJson } from "../format.ts";
+import { table, relativeTime, stateColor, outputJson, hint } from "../format.ts";
 
 const TERMINAL_STATES = new Set(["READY", "ERROR", "CANCELED"]);
 
@@ -98,7 +98,7 @@ export function registerLs(program: Command) {
         ].filter(Boolean).join(", ");
         console.error(`No deployments found (${scope})`);
         if (config.projectId) {
-          console.error("  hint: try --limit 50 or check project with vx ls --json");
+          hint("  hint: try --limit 50 or check project with vx ls --json");
         }
         process.exit(1);
       }
@@ -122,7 +122,7 @@ export function registerLs(program: Command) {
       const latestDeploy = data.deployments?.[0];
       const state = latestDeploy?.readyState || latestDeploy?.state;
       if (state && !TERMINAL_STATES.has(state)) {
-        console.error(`  hint: use --wait to poll until READY: vx ls --wait --json`);
+        hint("  hint: use --wait to poll until READY: vx ls --wait --json");
       }
 
       printTable(data);
