@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { vercel } from "../api.ts";
-import { getConfig } from "../config.ts";
+import { getConfig, resolveProjectId } from "../config.ts";
 import { table, relativeTime, stateColor, outputJson } from "../format.ts";
 
 const TERMINAL_STATES = new Set(["READY", "ERROR", "CANCELED"]);
@@ -37,9 +37,14 @@ export function registerLs(program: Command) {
     .option("--wait", "poll until latest deployment reaches READY or ERROR")
     .option("--interval <ms>", "poll interval for --wait (ms)", "5000")
     .option("--timeout <ms>", "timeout for --wait (ms)", "120000")
+    .option("--project <name>", "project name or ID (overrides .vercel/project.json)")
+    .option("--latest", "return only the latest deployment")
     .option("--json", "output raw JSON")
     .action(async (opts) => {
       const config = await getConfig();
+      if (opts.project) {
+        config.projectId = await resolveProjectId(config, opts.project);
+      }
 
       if (opts.wait) {
         const timeout = parseInt(opts.timeout);
@@ -58,7 +63,13 @@ export function registerLs(program: Command) {
           const state = latest.readyState || latest.state;
 
           if (TERMINAL_STATES.has(state)) {
-            if (opts.json) {
+            if (opts.latest) {
+              if (opts.json) {
+                outputJson(latest);
+              } else {
+                printTable({ deployments: [latest] });
+              }
+            } else if (opts.json) {
               outputJson(data.deployments);
             } else {
               printTable(data);
@@ -78,20 +89,6 @@ export function registerLs(program: Command) {
 
       const data = await fetchDeployments(config, opts);
 
-      if (opts.json) {
-        outputJson(data.deployments);
-        return;
-      }
-
-      // AX #9: guide agents toward --wait when they see BUILDING
-      if (!opts.json && !opts.wait) {
-        const latest = data.deployments?.[0];
-        const state = latest?.readyState || latest?.state;
-        if (state && !TERMINAL_STATES.has(state)) {
-          console.error(`  hint: use --wait to poll until READY: vx ls --wait --json`);
-        }
-      }
-
       if (!data.deployments?.length) {
         const scope = [
           `limit=${opts.limit}`,
@@ -103,7 +100,29 @@ export function registerLs(program: Command) {
         if (config.projectId) {
           console.error("  hint: try --limit 50 or check project with vx ls --json");
         }
+        process.exit(1);
+      }
+
+      if (opts.latest) {
+        const latest = data.deployments[0];
+        if (opts.json) {
+          outputJson(latest);
+        } else {
+          printTable({ deployments: [latest] });
+        }
         return;
+      }
+
+      if (opts.json) {
+        outputJson(data.deployments);
+        return;
+      }
+
+      // AX #9: guide agents toward --wait when they see BUILDING
+      const latestDeploy = data.deployments?.[0];
+      const state = latestDeploy?.readyState || latestDeploy?.state;
+      if (state && !TERMINAL_STATES.has(state)) {
+        console.error(`  hint: use --wait to poll until READY: vx ls --wait --json`);
       }
 
       printTable(data);

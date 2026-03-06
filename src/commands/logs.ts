@@ -86,12 +86,14 @@ async function queryAxiomLogs(opts: {
   filter: string | undefined;
   path: string | undefined;
   limit: string;
+  timeout: string;
   json: boolean;
 }) {
   const token = await getAxiomToken();
 
   const minutes = parseInt(opts.minutes);
   const limit = parseInt(opts.limit);
+  const timeoutMs = parseInt(opts.timeout);
   const now = new Date();
   const start = new Date(now.getTime() - minutes * 60 * 1000);
 
@@ -107,18 +109,33 @@ async function queryAxiomLogs(opts: {
   if (filters.length) apl += ` | where ${filters.join(" and ")}`;
   apl += ` | sort by _time desc | limit ${limit}`;
 
-  const res = await fetch("https://api.axiom.co/v1/datasets/_apl?format=legacy", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      startTime: start.toISOString(),
-      endTime: now.toISOString(),
-      apl,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.axiom.co/v1/datasets/_apl?format=legacy", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        startTime: start.toISOString(),
+        endTime: now.toISOString(),
+        apl,
+      }),
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      console.error(`Axiom query timed out after ${timeoutMs / 1000}s (use --timeout to extend)`);
+      process.exit(1);
+    }
+    throw err;
+  }
+  clearTimeout(timer);
 
   if (!res.ok) {
     throw new Error(`Axiom API ${res.status}: ${await res.text()}`);
@@ -231,6 +248,8 @@ export function registerLogs(program: Command) {
     .option("-g, --filter <text>", "filter by log message text")
     .option("-n, --limit <n>", "max log entries", "50")
     .option("--json", "output JSON lines")
+    .option("--no-follow", "ignored (runtime logs are always one-shot)")
+    .option("--timeout <ms>", "Axiom query timeout in ms", "30000")
     .action(async (_url: string | undefined, opts) => {
       await queryAxiomLogs(opts);
     });

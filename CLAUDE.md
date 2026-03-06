@@ -40,18 +40,22 @@ src/
 - `api.ts` handles all Vercel API auth and request logic
 - `format.ts` handles all output formatting (table, JSON, colors)
 - Every command supports `--json` for machine-readable output
-- Never write to local files — read-only CLI
+- `env` is a command group: `vx env` (list), `vx env KEY` (filter), `vx env set K=V`, `vx env rm K`
+- Only `vx env set` and `vx env rm` mutate (alongside `vx redeploy`)
 - `vx usage` — built-in telemetry command, shows flag frequency and retry chains
 
 ## JSON output shapes (for jq)
 
 All `--json` output is bare arrays — no wrapper objects:
 ```bash
-vx ls --json        | jq '.[0]'        # {url, state, created, ...}
-vx env --json       | jq '.[]'         # {key, value, target, ...}
-vx projects --json  | jq '.[]'         # {id, name, framework, ...}
-vx domains --json   | jq '.[]'         # {name, verified, ...}
-vx projects X --json| jq '.name'       # single object (not wrapped)
+vx ls --json           | jq '.[0]'     # {url, state, created, ...}
+vx ls --latest --json  | jq '.url'     # single object (not wrapped)
+vx env --json          | jq '.[]'      # {key, value, target, ...}
+vx env KEY --json      | jq '.key'     # single object (exact/substring match)
+vx env set K=V --json  | jq '.id'      # API response object
+vx projects --json     | jq '.[]'      # {id, name, framework, ...}
+vx domains --json      | jq '.[]'      # {name, verified, ...}
+vx projects X --json   | jq '.name'    # single object (not wrapped)
 ```
 
 Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).

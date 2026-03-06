@@ -42,6 +42,7 @@ Project context is read from `.vercel/project.json` — vx walks up from the cur
 ```bash
 vx ls                    # last 10 deployments
 vx ls --prod             # production only
+vx ls --latest --json    # single deployment object (not array)
 vx ls --limit 20         # more results
 vx ls --state ERROR      # filter by state
 vx ls --json             # raw JSON output
@@ -60,19 +61,23 @@ vx logs build my-app-abc123.vercel.app --timeout 60000  # extend timeout
 ### `vx logs runtime <url>` — runtime logs
 
 ```bash
-vx logs runtime my-app-abc123.vercel.app         # serverless function invocations
-vx logs runtime my-app-abc123.vercel.app -f      # follow live
-vx logs runtime my-app-abc123.vercel.app --json  # raw JSON events
+vx logs runtime -m 15 -n 50                      # last 15min, 50 entries
+vx logs runtime -p /api/shop -g "error"          # filter by path and text
+vx logs runtime --no-follow --timeout 5000       # accepted (runtime is always one-shot)
+vx logs runtime --json                           # raw JSON lines
 ```
 
-### `vx env` — list environment variables
+### `vx env` — manage environment variables
 
 ```bash
 vx env                        # list env vars for linked project
+vx env DATABASE_URL           # filter by key name (substring match)
 vx env --decrypt              # show values
 vx env --target production    # filter by environment
-vx env --project prj_abc123   # specify project
 vx env --json                 # raw JSON
+vx env set MY_KEY=myvalue     # set env var (all targets)
+vx env set MY_KEY=v --target production preview  # specific targets
+vx env rm MY_KEY              # remove env var
 ```
 
 ### `vx domains` — list domains
@@ -162,8 +167,11 @@ Use `vx` for Vercel operations:
 - `vx ls --json` — list deployments
 - `vx ls --wait --json` — poll until latest deployment is READY or ERROR
 - `vx logs build <url> --no-follow --timeout 10000` — build logs
-- `vx logs runtime <url> --no-follow --timeout 10000` — runtime logs
-- `vx env --json --project <name>` — env vars (read-only, never writes local files)
+- `vx logs runtime --no-follow --timeout 10000` — runtime logs (flags accepted gracefully)
+- `vx env --json --project <name>` — list env vars
+- `vx env KEY --json` — single env var lookup
+- `vx env set KEY=VALUE` — set env var
+- `vx ls --latest --json` — single deployment object (not array)
 - `vx domains --json` — domains
 - `vx projects --json` — projects
 - `vx redeploy` — redeploy latest deployment (or specify URL)
@@ -209,7 +217,7 @@ The original `vercel logs` hangs silently for 5 minutes. vx has a `--timeout` fl
 
 **6. Never mutate implicitly**
 
-vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. The only mutation is `vx redeploy`, which re-triggers an existing deployment — no arbitrary code, no repo IDs, no parameters to hallucinate.
+vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. Mutations are limited to `vx redeploy` (re-triggers an existing deployment) and `vx env set`/`vx env rm` (manage env vars via API) — no arbitrary code, no repo IDs, no parameters to hallucinate.
 
 **7. Read existing state, don't create new state**
 

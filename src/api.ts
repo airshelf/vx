@@ -36,6 +36,7 @@ export async function vercel(
     console.error(`Warning: ${remaining} API calls remaining`);
   }
 
+  if (res.status === 204 || res.headers.get("content-length") === "0") return {};
   return await res.json();
 }
 
