@@ -62,10 +62,10 @@ Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx l
 
 ## mcpfs filesystem mount
 
-`vx mcp` serves MCP resources on stdio. Combined with mcpfs, this exposes Vercel data as a filesystem:
+`vx mcp` serves MCP resources on stdio. `mcpfs auto` discovers it from `~/.claude.json` and mounts it:
 
 ```
-~/mnt/vercel/
+/mnt/mcpfs/vx-resources/
 ├── deployments.json          # array of deployments
 ├── deployments/<url>/        # ls to discover, cat to read
 │   ├── deployment            # single deployment JSON
@@ -77,8 +77,8 @@ Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx l
 └── domains.json              # array of domains
 ```
 
-Service: `systemctl --user status mcpfs-vercel` (auto-starts on boot).
-Agents: use `ls` + `cat` on `~/mnt/vercel/` for reads. Use `vx` CLI only for Axiom logs, polling, and mutations.
+Mount: `mcpfs auto` (mounts all MCP servers including vx).
+Agents: use `ls` + `cat` on `/mnt/mcpfs/vx-resources/` for reads. Use `vx` CLI for Axiom logs, polling, and mutations.
 
 ## MCP resource server (protocol)
 
