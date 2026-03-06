@@ -49,18 +49,33 @@ export function printUsageStats(): void {
     return;
   }
 
-  const total = recent.length;
-  const ok = recent.filter(e => e.ok).length;
-  const errors = recent.filter(e => !e.ok);
-  const avgMs = Math.round(recent.reduce((s, e) => s + e.ms, 0) / total);
+  // Known commands (exclude mcp from latency, unknown cmds from error rate)
+  const KNOWN_CMDS = new Set(["ls", "logs", "env", "domains", "projects", "redeploy", "usage", "mcp"]);
+
+  // Separate mcp (long-running server) and unknown commands from real usage
+  const cmds = recent.filter(e => KNOWN_CMDS.has(e.cmd) && e.cmd !== "mcp");
+  const unknowns = recent.filter(e => !KNOWN_CMDS.has(e.cmd));
+
+  const total = cmds.length;
+  const ok = cmds.filter(e => e.ok).length;
+  const errors = cmds.filter(e => !e.ok);
+  const avgMs = total ? Math.round(cmds.reduce((s, e) => s + e.ms, 0) / total) : 0;
 
   console.log(`Last 30 days: ${total} calls (${ok} ok, ${errors.length} errors)`);
-  console.log(`Success rate: ${Math.round(ok * 100 / total)}%`);
+  console.log(`Success rate: ${total ? Math.round(ok * 100 / total) : 0}%`);
   console.log(`Avg latency: ${avgMs}ms`);
 
-  // Command breakdown
+  const mcpSessions = recent.filter(e => e.cmd === "mcp");
+  if (mcpSessions.length) {
+    console.log(`MCP sessions: ${mcpSessions.length} (excluded from latency)`);
+  }
+  if (unknowns.length) {
+    console.log(`Unknown commands: ${unknowns.length} (guidance messages, not errors)`);
+  }
+
+  // Command breakdown (real commands only)
   const cmdCounts: Record<string, number> = {};
-  for (const e of recent) cmdCounts[e.cmd] = (cmdCounts[e.cmd] || 0) + 1;
+  for (const e of cmds) cmdCounts[e.cmd] = (cmdCounts[e.cmd] || 0) + 1;
   console.log();
   console.log("Commands:");
   for (const [cmd, count] of Object.entries(cmdCounts).sort((a, b) => b[1] - a[1])) {
@@ -69,7 +84,7 @@ export function printUsageStats(): void {
 
   // Flag frequency
   const flagCounts: Record<string, number> = {};
-  for (const e of recent) {
+  for (const e of cmds) {
     for (const a of e.args) {
       if (a.startsWith("-")) flagCounts[a] = (flagCounts[a] || 0) + 1;
     }
@@ -99,10 +114,10 @@ export function printUsageStats(): void {
 
   // Retry chains: error → same command succeeds within 2 min
   let chains = 0;
-  for (let i = 1; i < recent.length; i++) {
-    if (!recent[i - 1].ok && recent[i].ok && recent[i].cmd === recent[i - 1].cmd) {
-      const t1 = new Date(recent[i - 1].ts).getTime();
-      const t2 = new Date(recent[i].ts).getTime();
+  for (let i = 1; i < cmds.length; i++) {
+    if (!cmds[i - 1].ok && cmds[i].ok && cmds[i].cmd === cmds[i - 1].cmd) {
+      const t1 = new Date(cmds[i - 1].ts).getTime();
+      const t2 = new Date(cmds[i].ts).getTime();
       if (t2 - t1 < 120_000) chains++;
     }
   }
