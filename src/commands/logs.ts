@@ -59,8 +59,8 @@ async function streamBuildLogs(
             ).toLocaleTimeString();
             const text =
               event.text ||
-              event.payload?.text ||
-              JSON.stringify(event.payload || event);
+              event.payload?.text || "";
+            if (!text) continue;
             const colored =
               /error/i.test(text) ? pc.red(text) :
               /warn/i.test(text) ? pc.yellow(text) :
