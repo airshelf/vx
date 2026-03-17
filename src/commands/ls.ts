@@ -17,14 +17,20 @@ async function fetchDeployments(config: any, opts: any) {
 }
 
 function printTable(data: any) {
-  const rows = data.deployments.map((d: any) => [
-    d.url?.length > 50 ? d.url.slice(0, 47) + "..." : d.url ?? "-",
-    stateColor(d.readyState || d.state),
-    d.meta?.githubCommitRef || "-",
-    relativeTime(d.created),
-    d.creator?.username || "-",
-  ]);
-  table(["URL", "State", "Branch", "Age", "Creator"], rows);
+  const rows = data.deployments.map((d: any) => {
+    const sha = d.meta?.githubCommitSha?.slice(0, 8) || "-";
+    const msg = d.meta?.githubCommitMessage || "";
+    const truncMsg = msg.length > 40 ? msg.slice(0, 37) + "..." : msg || "-";
+    return [
+      stateColor(d.readyState || d.state),
+      sha,
+      d.name || "-",
+      truncMsg,
+      d.url?.length > 45 ? d.url.slice(0, 42) + "..." : d.url ?? "-",
+      relativeTime(d.created),
+    ];
+  });
+  table(["State", "SHA", "Project", "Message", "URL", "Age"], rows);
 }
 
 export function registerLs(program: Command) {
@@ -100,7 +106,7 @@ export function registerLs(program: Command) {
         if (config.projectId) {
           hint("  hint: try --limit 50 or check project with vx ls --json");
         }
-        process.exit(1);
+        process.exit(2);
       }
 
       if (opts.latest) {

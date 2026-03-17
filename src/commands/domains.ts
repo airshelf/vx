@@ -18,7 +18,7 @@ export function registerDomains(program: Command) {
 
       if (!data.domains?.length) {
         console.error(`No domains found (limit=${opts.limit})`);
-        return;
+        process.exit(2);
       }
 
       const rows = data.domains.map((d: any) => [

@@ -7,6 +7,7 @@ import { registerEnv } from "./commands/env.ts";
 import { registerDomains } from "./commands/domains.ts";
 import { registerProjects } from "./commands/projects.ts";
 import { registerRedeploy } from "./commands/redeploy.ts";
+import { registerStatus } from "./commands/status.ts";
 import { startMcpServer } from "./mcp.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
@@ -15,7 +16,7 @@ const program = new Command();
 program
   .name("vx")
   .version(pkg.version)
-  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy, mcp)");
+  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy, status, mcp)");
 
 program
   .command("usage")
@@ -33,10 +34,11 @@ registerEnv(program);
 registerDomains(program);
 registerProjects(program);
 registerRedeploy(program);
+registerStatus(program);
 
 // Unknown command handler — AX #9: guide on failure
 const unknownHints: Record<string, string> = {
-  deploy: "deploy via git push, then: vx ls --json — or: vx redeploy",
+  deploy: "deploy via git push, then: vx status — or: vx redeploy --wait",
   link: "project auto-detected from .vercel/project.json — or use: vx env --project <name>",
   login: "set VERCEL_TOKEN env var — get one at vercel.com/account/tokens",
   dev: "vx doesn't run dev servers — use next dev / framework dev command",

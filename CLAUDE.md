@@ -25,6 +25,7 @@ src/
     domains.ts      # List domains
     projects.ts     # List/find projects
     redeploy.ts     # Redeploy a deployment
+    status.ts       # Quick deployment health check
 ```
 
 ## Dependencies
@@ -56,6 +57,9 @@ vx env set K=V --json  | jq '.id'      # API response object
 vx projects --json     | jq '.[]'      # {id, name, framework, ...}
 vx domains --json      | jq '.[]'      # {name, verified, ...}
 vx projects X --json   | jq '.name'    # single object (not wrapped)
+vx status --json       | jq '.state'   # {project, state, url, sha, age, created}
+vx logs runtime --json | jq '.path'    # {time, level, message, path, status, method}
+vx logs build X --json | jq '.message' # {time, level, message}
 ```
 
 Agent gotcha: never `2>&1 | jq` — stderr hints corrupt JSON parsing. Use `vx ls --json | jq ...` (no `2>&1`).
@@ -90,10 +94,13 @@ Agents: use `ls` + `cat` on `.mcpfs/vx-resources/` for reads. Use `vx` CLI for A
 ## Design principles
 
 - Mostly read-only — only `vx redeploy` mutates (idempotent, triggers rebuild)
-- Only `vx env` needs project ID; everything else works without it
+- Project scoping: `--project <name>` on logs/env/redeploy/status, or auto-detected from `.vercel/project.json`
 - Project ID: auto-detected by walking up from cwd to find `.vercel/project.json` (works in worktrees and monorepo subdirs)
+- `resolveProjectId()` in config.ts: accepts name or `prj_` ID, searches Vercel API by name
 - Auth: VERCEL_TOKEN env var or existing Vercel CLI auth file — no login command
-- Deploy: not vx's job — deploy via git push, check status with `vx ls`
+- Deploy: not vx's job — deploy via git push, check status with `vx status`
+- `vx redeploy --wait` blocks until READY/ERROR, exits with appropriate code
+- Exit codes: 0 = success with data, 1 = error, 2 = no data found (empty results)
 - Error messages: one line, stderr, actionable next step (AX #1 + #9)
 - Unknown commands: mapped to specific one-line guidance (`deploy`, `link`, `login`, `dev`); fallback to `--help`
 - No references to `vercel` CLI in user-facing output — vx is self-sufficient

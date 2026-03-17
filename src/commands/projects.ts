@@ -36,7 +36,7 @@ export function registerProjects(program: Command) {
 
       if (!data.projects?.length) {
         console.error(`No projects found (limit=${opts.limit})`);
-        return;
+        process.exit(2);
       }
 
       const rows = data.projects.map((p: any) => [

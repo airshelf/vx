@@ -50,7 +50,7 @@ export function printUsageStats(): void {
   }
 
   // Known commands (exclude mcp from latency, unknown cmds from error rate)
-  const KNOWN_CMDS = new Set(["ls", "logs", "env", "domains", "projects", "redeploy", "usage", "mcp"]);
+  const KNOWN_CMDS = new Set(["ls", "logs", "env", "domains", "projects", "redeploy", "status", "usage", "mcp"]);
 
   // Separate mcp (long-running server) and unknown commands from real usage
   const cmds = recent.filter(e => KNOWN_CMDS.has(e.cmd) && e.cmd !== "mcp");

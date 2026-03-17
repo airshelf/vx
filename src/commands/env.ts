@@ -1,17 +1,18 @@
 import type { Command } from "commander";
 import { vercel } from "../api.ts";
-import { getConfig } from "../config.ts";
+import { getConfig, resolveProjectId } from "../config.ts";
 import { table, relativeTime, outputJson, hint } from "../format.ts";
 
 async function resolveProject(opts: any) {
-  const projectId = opts.project || (await getConfig()).projectId;
-  if (!projectId) {
-    console.error(
-      "No project found. Use --project or run from a linked directory."
-    );
-    process.exit(1);
+  const config = await getConfig();
+  if (opts.project) {
+    return await resolveProjectId(config, opts.project);
   }
-  return projectId;
+  if (config.projectId) return config.projectId;
+  console.error(
+    "No project found. Use --project <name> or run from a linked directory."
+  );
+  process.exit(1);
 }
 
 async function fetchEnvs(projectId: string, decrypt: boolean) {
@@ -29,7 +30,7 @@ export function registerEnv(program: Command) {
   // Default action: list / filter by name
   env
     .argument("[name]", "filter by key name (case-insensitive substring)")
-    .option("--project <id>", "project ID (overrides auto-detected)")
+    .option("--project <name>", "project name or ID (overrides .vercel/project.json)")
     .option("--decrypt", "show decrypted values")
     .option("--target <env>", "filter by target: production, preview, development")
     .option("--json", "output raw JSON")
@@ -54,7 +55,7 @@ export function registerEnv(program: Command) {
           if (similar.length) {
             hint(`  similar: ${similar.join(", ")}`);
           }
-          process.exit(1);
+          process.exit(2);
         }
 
         if (envs.length === 1) {
@@ -117,7 +118,7 @@ export function registerEnv(program: Command) {
   env
     .command("set <assignment>")
     .description("Set env var (KEY=VALUE)")
-    .option("--project <id>", "project ID (overrides auto-detected)")
+    .option("--project <name>", "project name or ID (overrides .vercel/project.json)")
     .option("--target <env...>", "target environments", ["production", "preview", "development"])
     .option("--json", "output raw JSON")
     .action(async (assignment: string, opts) => {
@@ -161,7 +162,7 @@ export function registerEnv(program: Command) {
   env
     .command("rm <key>")
     .description("Remove env var")
-    .option("--project <id>", "project ID (overrides auto-detected)")
+    .option("--project <name>", "project name or ID (overrides .vercel/project.json)")
     .option("--json", "output raw JSON")
     .action(async (key: string, opts) => {
       const projectId = await resolveProject(opts);

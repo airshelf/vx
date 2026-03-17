@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import pc from "picocolors";
-import { getConfig, getAxiomToken } from "../config.ts";
+import { getConfig, getAxiomToken, resolveProjectId } from "../config.ts";
 import { hint } from "../format.ts";
 
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
@@ -48,7 +48,11 @@ async function streamBuildLogs(
         try {
           const event = JSON.parse(line);
           if (opts.json) {
-            console.log(JSON.stringify(event));
+            console.log(JSON.stringify({
+              time: event.created || event.date,
+              level: event.type === "stderr" ? "error" : "info",
+              message: event.text || event.payload?.text || "",
+            }));
           } else {
             const timestamp = new Date(
               event.created || event.date
@@ -89,8 +93,16 @@ async function queryAxiomLogs(opts: {
   limit: string;
   timeout: string;
   json: boolean;
+  project: string | undefined;
 }) {
   const token = await getAxiomToken();
+  const config = await getConfig();
+
+  // Resolve project ID: --project flag > .vercel/project.json
+  let projectId = config.projectId;
+  if (opts.project) {
+    projectId = await resolveProjectId(config, opts.project);
+  }
 
   const minutes = parseInt(opts.minutes);
   const limit = parseInt(opts.limit);
@@ -101,6 +113,9 @@ async function queryAxiomLogs(opts: {
   // Build APL query — use _apl endpoint with ['field.name'] syntax
   let apl = "['vercel']";
   const filters: string[] = [];
+  if (projectId) {
+    filters.push(`['vercel.projectId'] == '${projectId}'`);
+  }
   if (opts.path) {
     filters.push(`['request.path'] startswith '${opts.path}'`);
   }
@@ -149,7 +164,8 @@ async function queryAxiomLogs(opts: {
     console.error(`No logs found (last ${minutes}m)`);
     if (opts.path) hint(`  path filter: ${opts.path}`);
     if (opts.filter) hint(`  text filter: ${opts.filter}`);
-    process.exit(0);
+    hint("  hint: try -m 60 for longer window or remove filters");
+    process.exit(2);
   }
 
   // Deduplicate: Axiom logs both a request event (empty message) and a
@@ -224,7 +240,7 @@ function addStreamOptions(cmd: Command) {
   return cmd
     .option("-f, --follow", "stream live", true)
     .option("--no-follow", "fetch once and exit")
-    .option("--timeout <ms>", "timeout in ms", "30000")
+    .option("--timeout <ms>", "timeout in ms", "60000")
     .option("--json", "output raw JSON events");
 }
 
@@ -248,6 +264,7 @@ export function registerLogs(program: Command) {
     .option("-p, --path <path>", "filter by request path prefix (e.g. /api/shop)")
     .option("-g, --filter <text>", "filter by log message text")
     .option("-n, --limit <n>", "max log entries", "50")
+    .option("--project <name>", "project name or ID (overrides .vercel/project.json)")
     .option("--json", "output JSON lines")
     .option("--no-follow", "ignored (runtime logs are always one-shot)")
     .option("--timeout <ms>", "Axiom query timeout in ms", "30000")
