@@ -128,7 +128,10 @@ async function queryAxiomLogs(opts: {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Keep the abort timer armed across both the fetch and the body read —
+  // a stuck Axiom response body would otherwise hang forever at 100% CPU.
   let res: Response;
+  let data: any;
   try {
     res = await fetch("https://api.axiom.co/v1/datasets/_apl?format=legacy", {
       method: "POST",
@@ -143,21 +146,21 @@ async function queryAxiomLogs(opts: {
         apl,
       }),
     });
+
+    if (!res.ok) {
+      throw new Error(`Axiom API ${res.status}: ${await res.text()}`);
+    }
+
+    data = await res.json();
   } catch (err: any) {
-    clearTimeout(timer);
     if (err.name === "AbortError") {
       console.error(`Axiom query timed out after ${timeoutMs / 1000}s (use --timeout to extend)`);
       process.exit(1);
     }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  clearTimeout(timer);
-
-  if (!res.ok) {
-    throw new Error(`Axiom API ${res.status}: ${await res.text()}`);
-  }
-
-  const data = await res.json() as any;
   const matches = data.matches || [];
 
   if (!matches.length) {

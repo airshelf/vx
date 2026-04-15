@@ -1,4 +1,13 @@
 #!/usr/bin/env bun
+// Exit cleanly when stdout/stderr is closed (e.g. piped to `head`).
+// Without this, Bun keeps the process alive at 100% CPU after the consumer exits.
+for (const stream of [process.stdout, process.stderr] as const) {
+  stream.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EPIPE") process.exit(0);
+    throw err;
+  });
+}
+
 import { Command } from "commander";
 import pkg from "../package.json";
 import { registerLs } from "./commands/ls.ts";
