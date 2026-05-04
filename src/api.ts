@@ -3,6 +3,32 @@ import { hint } from "./format.ts";
 
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
+// Default timeout for Vercel API calls. Without it, a stalled fetch keeps
+// bun's event loop alive indefinitely (observed: 99% CPU for hours after
+// the consumer of stdout had already exited). Override with VX_API_TIMEOUT_MS.
+const API_TIMEOUT_MS = parseInt(process.env.VX_API_TIMEOUT_MS || "30000");
+
+export async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs: number = API_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `Vercel API timeout after ${timeoutMs / 1000}s — set VX_API_TIMEOUT_MS to extend`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function buildRequest(path: string, opts?: { method?: string; body?: unknown }) {
   const config = await getConfig();
   const url = `${BASE}${path}${
@@ -24,7 +50,7 @@ export async function vercel(
   opts?: { method?: string; body?: unknown }
 ): Promise<any> {
   const { url, init } = await buildRequest(path, opts);
-  const res = await fetch(url, init);
+  const res = await fetchWithTimeout(url, init);
 
   if (!res.ok) {
     const body = await res.text();
@@ -56,7 +82,9 @@ function apiErrorHint(status: number, body?: string): string {
 
 export async function vercelStream(path: string): Promise<Response> {
   const { url, init } = await buildRequest(path);
-  const res = await fetch(url, init);
+  // Streams use their own AbortController managed by the caller (e.g. logs.ts),
+  // so we only timeout the initial fetch handshake here, not the body read.
+  const res = await fetchWithTimeout(url, init);
 
   if (!res.ok) {
     const body = await res.text();

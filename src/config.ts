@@ -90,10 +90,25 @@ export async function resolveProjectId(
 
   const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
   const teamQuery = config.teamId ? `&teamId=${config.teamId}` : "";
-  const res = await fetch(
-    `${BASE}/v9/projects?search=${encodeURIComponent(nameOrId)}${teamQuery}`,
-    { headers: { Authorization: `Bearer ${config.token}` } }
-  );
+  const timeoutMs = parseInt(process.env.VX_API_TIMEOUT_MS || "30000");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(
+      `${BASE}/v9/projects?search=${encodeURIComponent(nameOrId)}${teamQuery}`,
+      { headers: { Authorization: `Bearer ${config.token}` }, signal: controller.signal }
+    );
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `Vercel API timeout resolving project '${nameOrId}' after ${timeoutMs / 1000}s`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await res.json() as any;
   const match = data.projects?.find(
     (p: any) => p.name === nameOrId || p.id === nameOrId

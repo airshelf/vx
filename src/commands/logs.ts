@@ -9,7 +9,19 @@ async function streamBuildLogs(
   url: string,
   opts: { follow: boolean; timeout: string; json: boolean }
 ) {
-  url = url.replace(/^https?:\/\//, "");
+  url = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  // The Vercel API expects a deployment hostname (e.g. airshelf-xxx.vercel.app
+  // or the dpl_… ID) — NOT a dashboard URL. Passing the dashboard URL caused
+  // the request path to become /v3/deployments/vercel.com/team/project/id/...
+  // which 404s. Reject upfront so users get a useful error instead.
+  if (url.startsWith("vercel.com/")) {
+    console.error("Error: pass the deployment URL, not the Vercel dashboard URL");
+    console.error("       got:      " + url);
+    console.error("       expected: <name>-<hash>-<team>.vercel.app  or  dpl_…");
+    console.error("       hint:     copy the URL from `vx ls`, not from the dashboard");
+    process.exit(2);
+  }
 
   const config = await getConfig();
   let path = `/v3/deployments/${url}/events?direction=forward&builds=1`;
