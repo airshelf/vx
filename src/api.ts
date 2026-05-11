@@ -4,8 +4,13 @@ import { hint } from "./format.ts";
 const BASE = process.env.VX_API_BASE || "https://api.vercel.com";
 
 // Default timeout for Vercel API calls. Without it, a stalled fetch keeps
-// bun's event loop alive indefinitely (observed: 99% CPU for hours after
+// bun's event loop alive indefinitely (observed: 99% CPU for days after
 // the consumer of stdout had already exited). Override with VX_API_TIMEOUT_MS.
+//
+// IMPORTANT: this protects the *connection handshake only*. The body read
+// (res.json() / res.text()) runs after the timer is cleared. If headers
+// arrive but the body stalls, the spin returns. Use vercel() / vercelStream()
+// which keep the controller armed for the entire request lifecycle.
 const API_TIMEOUT_MS = parseInt(process.env.VX_API_TIMEOUT_MS || "30000");
 
 export async function fetchWithTimeout(
@@ -50,21 +55,34 @@ export async function vercel(
   opts?: { method?: string; body?: unknown }
 ): Promise<any> {
   const { url, init } = await buildRequest(path, opts);
-  const res = await fetchWithTimeout(url, init);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
 
-  if (!res.ok) {
-    const body = await res.text();
-    const hint = apiErrorHint(res.status, body);
-    throw new Error(`Vercel API ${res.status}: ${body}${hint}`);
+    if (!res.ok) {
+      const body = await res.text();
+      const errHint = apiErrorHint(res.status, body);
+      throw new Error(`Vercel API ${res.status}: ${body}${errHint}`);
+    }
+
+    const remaining = res.headers.get("X-RateLimit-Remaining");
+    if (remaining !== null && parseInt(remaining) < 10) {
+      hint(`Warning: ${remaining} API calls remaining`);
+    }
+
+    if (res.status === 204 || res.headers.get("content-length") === "0") return {};
+    return await res.json();
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      throw new Error(
+        `Vercel API timeout after ${API_TIMEOUT_MS / 1000}s — set VX_API_TIMEOUT_MS to extend`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const remaining = res.headers.get("X-RateLimit-Remaining");
-  if (remaining !== null && parseInt(remaining) < 10) {
-    hint(`Warning: ${remaining} API calls remaining`);
-  }
-
-  if (res.status === 204 || res.headers.get("content-length") === "0") return {};
-  return await res.json();
 }
 
 function apiErrorHint(status: number, body?: string): string {

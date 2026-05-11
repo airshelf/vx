@@ -93,12 +93,13 @@ export async function resolveProjectId(
   const timeoutMs = parseInt(process.env.VX_API_TIMEOUT_MS || "30000");
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  let res: Response;
+  let data: any;
   try {
-    res = await fetch(
+    const res = await fetch(
       `${BASE}/v9/projects?search=${encodeURIComponent(nameOrId)}${teamQuery}`,
       { headers: { Authorization: `Bearer ${config.token}` }, signal: controller.signal }
     );
+    data = await res.json();
   } catch (err: any) {
     if (err.name === "AbortError") {
       throw new Error(
@@ -109,7 +110,6 @@ export async function resolveProjectId(
   } finally {
     clearTimeout(timer);
   }
-  const data = await res.json() as any;
   const match = data.projects?.find(
     (p: any) => p.name === nameOrId || p.id === nameOrId
   );
