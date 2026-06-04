@@ -160,5 +160,16 @@ export async function startMcpServer() {
   );
 
   const transport = new StdioServerTransport();
+
+  // Exit when the parent Claude session dies. Without this, stdin EOF
+  // spin-loops under bun (100% CPU until manually killed) — the third
+  // runaway class after EPIPE and stuck Axiom bodies (see 9901b93).
+  process.stdin.on("end", () => process.exit(0));
+  process.stdin.on("close", () => process.exit(0));
+  const parentPid = process.ppid;
+  setInterval(() => {
+    if (process.ppid !== parentPid) process.exit(0); // orphaned: reparented
+  }, 30_000).unref();
+
   await server.connect(transport);
 }
