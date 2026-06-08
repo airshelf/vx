@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { vercel } from "./api.ts";
 import { getConfig } from "./config.ts";
+import { readFileSync } from "node:fs";
 import pkg from "../package.json";
 
 function json(data: unknown) {
@@ -161,15 +162,34 @@ export async function startMcpServer() {
 
   const transport = new StdioServerTransport();
 
-  // Exit when the parent Claude session dies. Without this, stdin EOF
-  // spin-loops under bun (100% CPU until manually killed) — the third
-  // runaway class after EPIPE and stuck Axiom bodies (see 9901b93).
+  // Exit when the parent Claude session dies. An orphaned mcp server is a
+  // runaway class: a bun threadpool thread spins at 100% CPU for days while
+  // the main loop sits idle in epoll, and nothing kills it (see 9901b93; orphan
+  // observed 2026-06-07: PID 197567, 1014 CPU-min, watchdog v1 failed to fire).
+  //
+  // Two non-obvious requirements, both from a watchdog that did NOT work:
+  //   1. The interval must stay ref'd. An unref'd timer does not wake bun's
+  //      epoll-parked loop, so the check never runs when the parent's stdio
+  //      socket never delivers EOF (the harness keeps the peer fd open).
+  //   2. process.ppid is cached at startup in bun, so read the live ppid from
+  //      /proc/self/stat (field 4) — it becomes 1 once the parent dies.
   process.stdin.on("end", () => process.exit(0));
   process.stdin.on("close", () => process.exit(0));
-  const parentPid = process.ppid;
+
+  const startupPpid = process.ppid;
+  const liveParentPid = (): number => {
+    try {
+      const stat = readFileSync("/proc/self/stat", "utf8");
+      // comm (field 2) is parenthesized and may contain spaces; parse after ") "
+      return Number(stat.slice(stat.lastIndexOf(") ") + 2).split(" ")[1]);
+    } catch {
+      return process.ppid; // non-Linux fallback
+    }
+  };
   setInterval(() => {
-    if (process.ppid !== parentPid) process.exit(0); // orphaned: reparented
-  }, 30_000).unref();
+    const ppid = liveParentPid();
+    if (ppid <= 1 || ppid !== startupPpid) process.exit(0); // orphaned: reparented
+  }, 30_000); // ref'd on purpose — must wake the idle loop
 
   await server.connect(transport);
 }
