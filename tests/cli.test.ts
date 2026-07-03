@@ -25,7 +25,7 @@ describe("unknown command handler", () => {
     const { stderr, exitCode } = await runCli("deploy", "--prod");
     expect(exitCode).toBe(1);
     expect(stderr).toContain("git push");
-    expect(stderr).toContain("vx ls --json");
+    expect(stderr).toContain("vx status");
   });
 
   test("link gives project.json guidance", async () => {
