@@ -75,6 +75,25 @@ process.on("beforeExit", () => {
   }
 });
 
+// Hard-exit watchdog. A 30s AbortController guards every Vercel API call, but
+// abort() cannot interrupt bun's *native* fetch spin — observed: `vx status`
+// pegged 100% CPU for 79 min despite the abort timer (the promise never
+// settled). This force-exits a one-shot command that overruns a hard deadline,
+// which is the only reliable escape from that spin. `.unref()` means a healthy
+// command still exits the instant it finishes. Excludes the long-lived `mcp`
+// server and streaming `logs` (both manage their own lifecycle/--timeout).
+if (cmd !== "mcp" && cmd !== "logs" && cmd !== "usage") {
+  const hardMs = parseInt(process.env.VX_HARD_TIMEOUT_MS || "60000");
+  const watchdog = setTimeout(() => {
+    console.error(
+      `vx: hard timeout after ${hardMs / 1000}s — force exit (stuck fetch; ` +
+        `AbortController could not interrupt it). Set VX_HARD_TIMEOUT_MS to extend.`
+    );
+    process.exit(124);
+  }, hardMs);
+  (watchdog as unknown as { unref?: () => void }).unref?.();
+}
+
 program.parseAsync().catch((err: any) => {
   console.error(err.message || String(err));
   if (!logged) {

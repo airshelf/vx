@@ -215,6 +215,8 @@ vx never prompts for confirmation, opens a browser, or launches an editor. Auth 
 
 The original `vercel logs` hangs silently for 5 minutes. vx has a `--timeout` flag (default 30s) and exits with a clear error message. Agents can detect failure and try something else.
 
+Beyond the per-request `AbortController` timeout, every one-shot command is guarded by a process-level hard-exit watchdog (default 60s, `VX_HARD_TIMEOUT_MS` to override). This exists because `controller.abort()` cannot interrupt bun's *native* fetch spin — observed: `vx status` pegged 100% CPU for 79 minutes despite the abort timer, because the promise never settled. A force-exit is the only reliable escape from that spin. The watchdog is `.unref()`'d, so a healthy command still exits the instant it finishes; the long-lived `mcp` server and streaming `logs` are excluded.
+
 **6. Never mutate implicitly**
 
 vx never writes to local files. `vercel env pull` overwrites `.env.local` — vx reads env vars and prints them. `vercel link` rewires `.vercel/project.json` — vx only reads it. Mutations are limited to `vx redeploy` (re-triggers an existing deployment) and `vx env set`/`vx env rm` (manage env vars via API) — no arbitrary code, no repo IDs, no parameters to hallucinate.
