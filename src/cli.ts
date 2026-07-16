@@ -75,6 +75,25 @@ process.on("beforeExit", () => {
   }
 });
 
+// Abnormal-termination telemetry. beforeExit does NOT fire on process.exit()
+// or on signals, so without these the tool's two worst failure modes — the
+// hard-timeout watchdog below and a caller (agent harness) killing a hung
+// call — leave NO usage record. That blind spot hid every post-April hang:
+// usage.jsonl showed 0 slow calls while sessions kept hitting timeouts.
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.on(sig, () => {
+    if (!logged) {
+      logUsage({
+        ts: "", cmd, args, ok: false,
+        error: `killed by ${sig} after ${Math.round((Date.now() - start) / 1000)}s (caller timeout?)`,
+        ms: Date.now() - start,
+      });
+      logged = true;
+    }
+    process.exit(sig === "SIGTERM" ? 143 : 130);
+  });
+}
+
 // Hard-exit watchdog. A 30s AbortController guards every Vercel API call, but
 // abort() cannot interrupt bun's *native* fetch spin — observed: `vx status`
 // pegged 100% CPU for 79 min despite the abort timer (the promise never
@@ -89,6 +108,14 @@ if (cmd !== "mcp" && cmd !== "logs" && cmd !== "usage") {
       `vx: hard timeout after ${hardMs / 1000}s — force exit (stuck fetch; ` +
         `AbortController could not interrupt it). Set VX_HARD_TIMEOUT_MS to extend.`
     );
+    if (!logged) {
+      logUsage({
+        ts: "", cmd, args, ok: false,
+        error: `hard timeout after ${hardMs / 1000}s — watchdog force exit 124`,
+        ms: Date.now() - start,
+      });
+      logged = true;
+    }
     process.exit(124);
   }, hardMs);
   (watchdog as unknown as { unref?: () => void }).unref?.();
