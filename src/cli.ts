@@ -17,7 +17,6 @@ import { registerDomains } from "./commands/domains.ts";
 import { registerProjects } from "./commands/projects.ts";
 import { registerRedeploy } from "./commands/redeploy.ts";
 import { registerStatus } from "./commands/status.ts";
-import { startMcpServer } from "./mcp.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
 const program = new Command();
@@ -25,7 +24,14 @@ const program = new Command();
 program
   .name("vx")
   .version(pkg.version)
-  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy, status, mcp)");
+  .description("Fast Vercel CLI (ls, logs, env, domains, projects, redeploy, status, mcp)")
+  // Positional options: stop classifying options at each subcommand boundary.
+  // Without this, options after `env set` (--project/--target/--json, which
+  // the parent `env` command also declares) were consumed by the parent and
+  // `env set K=V --project X` silently wrote to the DEFAULT project.
+  // Must be enabled here at the program level — option classification starts
+  // at the root, so enabling it only on `env` has no effect.
+  .enablePositionalOptions();
 
 program
   .command("usage")
@@ -35,7 +41,12 @@ program
 program
   .command("mcp")
   .description("Start MCP resource server (stdio)")
-  .action(() => startMcpServer());
+  // Lazy import: the MCP SDK tree (zod, zod-to-json-schema, …) is by far the
+  // heaviest thing vx loads, and only this command needs it. Loading it at
+  // startup taxed EVERY invocation and is where bun's loader was observed to
+  // spin at 100% CPU — before the watchdog below is even armed (imports run
+  // first, so no in-process guard can cover that phase).
+  .action(async () => (await import("./mcp.ts")).startMcpServer());
 
 registerLs(program);
 registerLogs(program);

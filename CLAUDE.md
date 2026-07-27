@@ -43,6 +43,9 @@ src/
 - Every command supports `--json` for machine-readable output
 - `env` is a command group: `vx env` (list), `vx env KEY` (filter), `vx env set K=V`, `vx env rm K`
 - Only `vx env set` and `vx env rm` mutate (alongside `vx redeploy`)
+- Commander positional options are ON (`program` + `env` group). Without them the parent `env` group silently consumed `--project`/`--target`/`--json` given after `set`/`rm` and `env set K=V --project X` wrote to the DEFAULT project (2026-07 incident). If a subcommand redeclares a group-level option name, it needs this — check `tests/commands.test.ts` ("env set/rm project scoping") before touching parsing.
+- `env set`/`env rm` echo the resolved project in the success line (`set KEY on bime-telegram (…)`) — that's the wrong-project tripwire, keep it.
+- Keep heavy deps OUT of cli.ts top-level imports: `mcp.ts` (MCP SDK + zod tree) is dynamically imported by the `mcp` command only. Import-time work runs before the hard watchdog is armed, and bun's loader has been observed spinning at 100% CPU there.
 - `vx usage` — built-in telemetry command, shows flag frequency and retry chains
 
 ## JSON output shapes (for jq)
