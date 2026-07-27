@@ -1,12 +1,25 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+
+// Resolve the checkout under test from this file's location — hardcoding
+// /home/eo/src/vx silently tests the main checkout when run from a worktree.
+const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const CLI = `${REPO_ROOT}src/cli.ts`;
+
 let server: ReturnType<typeof Bun.serve>;
 let deploymentCallCount = 0;
+const requestLog: string[] = [];
+let lastEnvWrite: any = null;
 
 beforeAll(() => {
   server = Bun.serve({
+    // Pin to 127.0.0.1 on both sides (see VX_API_BASE below): "localhost" can
+    // resolve to ::1 first and intermittently stall spawned CLI fetches for
+    // seconds, which showed up as random exactly-5000ms test timeouts.
+    hostname: "127.0.0.1",
     port: 0,
     fetch(req) {
       const url = new URL(req.url);
+      requestLog.push(`${req.method} ${url.pathname}`);
 
       if (url.pathname === "/v6/deployments") {
         deploymentCallCount++;
@@ -53,9 +66,16 @@ beforeAll(() => {
         url.pathname.startsWith("/v10/projects/") &&
         url.pathname.endsWith("/env")
       ) {
+        if (req.method === "POST") {
+          return req.json().then((body: any) => {
+            lastEnvWrite = body;
+            return Response.json({ ...body, id: "env_created" });
+          });
+        }
         return Response.json({
           envs: [
             {
+              id: "env_db",
               key: "DATABASE_URL",
               type: "secret",
               target: ["production"],
@@ -63,6 +83,7 @@ beforeAll(() => {
               value: "postgres://...",
             },
             {
+              id: "env_pk",
               key: "PUBLIC_KEY",
               type: "plain",
               target: ["production", "preview"],
@@ -70,6 +91,7 @@ beforeAll(() => {
               value: "pk_123",
             },
             {
+              id: "env_dev",
               key: "DEV_ONLY",
               type: "plain",
               target: ["development"],
@@ -80,7 +102,26 @@ beforeAll(() => {
         });
       }
 
+      // PATCH/DELETE on a single env var: /v10/projects/:id/env/:envId
+      if (/^\/v10\/projects\/[^/]+\/env\/[^/]+$/.test(url.pathname)) {
+        if (req.method === "PATCH") {
+          return req.json().then((body: any) => {
+            lastEnvWrite = body;
+            return Response.json({ ...body, id: url.pathname.split("/").pop() });
+          });
+        }
+        if (req.method === "DELETE") {
+          return Response.json({});
+        }
+      }
+
       if (url.pathname === "/v9/projects") {
+        // Project-name search used by resolveProjectId()
+        if (url.searchParams.get("search") === "bime-telegram") {
+          return Response.json({
+            projects: [{ id: "prj_bime123", name: "bime-telegram" }],
+          });
+        }
         return Response.json({
           projects: [
             {
@@ -154,12 +195,12 @@ afterAll(() => server.stop());
 async function runCli(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
-    cwd: "/home/eo/src/vx",
+  const proc = Bun.spawn(["bun", "run", CLI, ...args], {
+    cwd: REPO_ROOT,
     env: {
       ...process.env,
       VERCEL_TOKEN: "test-token",
-      VX_API_BASE: `http://localhost:${server.port}`,
+      VX_API_BASE: `http://127.0.0.1:${server.port}`,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -205,12 +246,12 @@ describe("ls command", () => {
     // Create temp dir with .vercel/project.json pointing to prj_building
     const tmpDir = `/tmp/vx-test-building-${Date.now()}`;
     await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
-    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls"], {
+    const proc = Bun.spawn(["bun", "run", CLI, "ls"], {
       cwd: tmpDir,
       env: {
         ...process.env,
         VERCEL_TOKEN: "test-token",
-        VX_API_BASE: `http://localhost:${server.port}`,
+        VX_API_BASE: `http://127.0.0.1:${server.port}`,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -231,12 +272,12 @@ describe("ls command", () => {
   test("ls --json does NOT hint about --wait (hint is table-mode only)", async () => {
     const tmpDir = `/tmp/vx-test-building-json-${Date.now()}`;
     await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
-    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls", "--json"], {
+    const proc = Bun.spawn(["bun", "run", CLI, "ls", "--json"], {
       cwd: tmpDir,
       env: {
         ...process.env,
         VERCEL_TOKEN: "test-token",
-        VX_API_BASE: `http://localhost:${server.port}`,
+        VX_API_BASE: `http://127.0.0.1:${server.port}`,
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -294,6 +335,114 @@ describe("env command", () => {
     );
     expect(exitCode).toBe(0);
     expect(stdout).toContain("DATABASE_URL");
+  });
+});
+
+// Regression: `vx env set K=V --project X` silently wrote to the DEFAULT
+// project (2026-07-25, NDA_TOKEN_SECRET landed on airshelf instead of
+// bime-telegram). Root cause: the parent `env` command also declares
+// --project/--target/--json, and commander's default non-positional parsing
+// lets the parent consume those options even when they appear after the
+// subcommand — so `set`/`rm` never saw them and fell back to
+// .vercel/project.json. These tests run from a directory linked to
+// prj_default999 so any fallback is detectable as a write to the wrong path.
+describe("env set/rm project scoping", () => {
+  const linkedDir = `/tmp/vx-test-linked-${Date.now()}`;
+
+  beforeAll(async () => {
+    await Bun.write(
+      `${linkedDir}/.vercel/project.json`,
+      JSON.stringify({ projectId: "prj_default999" })
+    );
+  });
+
+  afterAll(async () => {
+    const { rmSync } = await import("fs");
+    rmSync(linkedDir, { recursive: true, force: true });
+  });
+
+  async function runLinked(
+    ...args: string[]
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const proc = Bun.spawn(["bun", "run", CLI, ...args], {
+      cwd: linkedDir,
+      env: {
+        ...process.env,
+        VERCEL_TOKEN: "test-token",
+        VX_API_BASE: `http://127.0.0.1:${server.port}`,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    const exitCode = await proc.exited;
+    return { stdout, stderr, exitCode };
+  }
+
+  test("set --project <name> creates the var on the named project", async () => {
+    requestLog.length = 0;
+    const { stdout, exitCode } = await runLinked(
+      "env", "set", "NEW_KEY=hello", "--project", "bime-telegram"
+    );
+    expect(exitCode).toBe(0);
+    const writes = requestLog.filter((r) => /^(POST|PATCH|DELETE) /.test(r));
+    expect(writes).toEqual(["POST /v10/projects/prj_bime123/env"]);
+    expect(requestLog.join("\n")).not.toContain("prj_default999");
+    // AX: success line must echo the resolved project so a mismatch is visible
+    expect(stdout).toContain("set NEW_KEY on bime-telegram");
+  });
+
+  test("set --project <name> updates an existing var on the named project", async () => {
+    requestLog.length = 0;
+    const { stdout, exitCode } = await runLinked(
+      "env", "set", "DATABASE_URL=postgres://new", "--project", "bime-telegram"
+    );
+    expect(exitCode).toBe(0);
+    const writes = requestLog.filter((r) => /^(POST|PATCH|DELETE) /.test(r));
+    expect(writes).toEqual(["PATCH /v10/projects/prj_bime123/env/env_db"]);
+    expect(requestLog.join("\n")).not.toContain("prj_default999");
+    expect(stdout).toContain("on bime-telegram");
+  });
+
+  test("set --target after the subcommand reaches set, not the parent", async () => {
+    lastEnvWrite = null;
+    const { stdout, exitCode } = await runLinked(
+      "env", "set", "NEW_KEY=hello", "--project", "prj_bime123",
+      "--target", "production"
+    );
+    expect(exitCode).toBe(0);
+    expect(lastEnvWrite.target).toEqual(["production"]);
+    expect(stdout).toContain("(production)");
+  });
+
+  test("set --json outputs JSON, not the table line", async () => {
+    const { stdout, exitCode } = await runLinked(
+      "env", "set", "NEW_KEY=hello", "--project", "prj_bime123", "--json"
+    );
+    expect(exitCode).toBe(0);
+    const data = JSON.parse(stdout);
+    expect(data.key).toBe("NEW_KEY");
+  });
+
+  test("rm --project <name> deletes from the named project", async () => {
+    requestLog.length = 0;
+    const { stdout, exitCode } = await runLinked(
+      "env", "rm", "DATABASE_URL", "--project", "bime-telegram"
+    );
+    expect(exitCode).toBe(0);
+    const writes = requestLog.filter((r) => /^(POST|PATCH|DELETE) /.test(r));
+    expect(writes).toEqual(["DELETE /v10/projects/prj_bime123/env/env_db"]);
+    expect(requestLog.join("\n")).not.toContain("prj_default999");
+    expect(stdout).toContain("removed DATABASE_URL on bime-telegram");
+  });
+
+  test("set without --project echoes the default project id", async () => {
+    const { stdout, exitCode } = await runLinked("env", "set", "NEW_KEY=hello");
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("set NEW_KEY on prj_default999");
   });
 });
 
