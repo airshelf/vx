@@ -1,9 +1,19 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+
+// Resolve the checkout under test from this file's location — hardcoding
+// /home/eo/src/vx silently tests the main checkout when run from a worktree.
+const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const CLI = `${REPO_ROOT}src/cli.ts`;
+
 let server: ReturnType<typeof Bun.serve>;
 let deploymentCallCount = 0;
 
 beforeAll(() => {
   server = Bun.serve({
+    // Pin to 127.0.0.1 on both sides (see VX_API_BASE below): "localhost" can
+    // resolve to ::1 first and intermittently stall spawned CLI fetches for
+    // seconds, which showed up as random exactly-5000ms test timeouts.
+    hostname: "127.0.0.1",
     port: 0,
     fetch(req) {
       const url = new URL(req.url);
@@ -154,12 +164,13 @@ afterAll(() => server.stop());
 async function runCli(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
-    cwd: "/home/eo/src/vx",
+  const proc = Bun.spawn(["bun", "run", CLI, ...args], {
+    cwd: REPO_ROOT,
     env: {
       ...process.env,
       VERCEL_TOKEN: "test-token",
-      VX_API_BASE: `http://localhost:${server.port}`,
+      VX_API_BASE: `http://127.0.0.1:${server.port}`,
+      VX_HINTS: "1",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -181,11 +192,11 @@ describe("ls command", () => {
     expect(data[0].url).toBe("test-app-abc123.vercel.app");
   });
 
-  test("ls table mode shows deployment URL and creator", async () => {
+  test("ls table mode shows deployment URL and state", async () => {
     const { stdout, exitCode } = await runCli("ls");
     expect(exitCode).toBe(0);
     expect(stdout).toContain("test-app-abc123.vercel.app");
-    expect(stdout).toContain("testuser");
+    expect(stdout).toContain("READY");
   });
 
   test("ls --wait exits 0 when deployment is READY", async () => {
@@ -205,12 +216,13 @@ describe("ls command", () => {
     // Create temp dir with .vercel/project.json pointing to prj_building
     const tmpDir = `/tmp/vx-test-building-${Date.now()}`;
     await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
-    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls"], {
+    const proc = Bun.spawn(["bun", "run", CLI, "ls"], {
       cwd: tmpDir,
       env: {
         ...process.env,
         VERCEL_TOKEN: "test-token",
-        VX_API_BASE: `http://localhost:${server.port}`,
+        VX_API_BASE: `http://127.0.0.1:${server.port}`,
+        VX_HINTS: "1",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -231,12 +243,13 @@ describe("ls command", () => {
   test("ls --json does NOT hint about --wait (hint is table-mode only)", async () => {
     const tmpDir = `/tmp/vx-test-building-json-${Date.now()}`;
     await Bun.write(`${tmpDir}/.vercel/project.json`, JSON.stringify({ projectId: "prj_building" }));
-    const proc = Bun.spawn(["bun", "run", "/home/eo/src/vx/src/cli.ts", "ls", "--json"], {
+    const proc = Bun.spawn(["bun", "run", CLI, "ls", "--json"], {
       cwd: tmpDir,
       env: {
         ...process.env,
         VERCEL_TOKEN: "test-token",
-        VX_API_BASE: `http://localhost:${server.port}`,
+        VX_API_BASE: `http://127.0.0.1:${server.port}`,
+        VX_HINTS: "1",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -362,7 +375,7 @@ describe("redeploy command", () => {
     const { stdout, stderr, exitCode } = await runCli("redeploy");
     expect(exitCode).toBe(0);
     expect(stdout).toContain("redeployed-app.vercel.app");
-    expect(stderr).toContain("vx ls --wait");
+    expect(stderr).toContain("use --wait to block until READY");
   });
 
   test("redeploy with URL resolves deployment", async () => {

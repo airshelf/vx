@@ -17,7 +17,6 @@ import { registerDomains } from "./commands/domains.ts";
 import { registerProjects } from "./commands/projects.ts";
 import { registerRedeploy } from "./commands/redeploy.ts";
 import { registerStatus } from "./commands/status.ts";
-import { startMcpServer } from "./mcp.ts";
 import { logUsage, printUsageStats } from "./telemetry.ts";
 
 const program = new Command();
@@ -35,7 +34,11 @@ program
 program
   .command("mcp")
   .description("Start MCP resource server (stdio)")
-  .action(() => startMcpServer());
+  // Lazy import: the MCP SDK dependency graph is huge, and loading it on
+  // every invocation is what bun's loader occasionally spins on forever at
+  // 100% CPU — before this file's top-level code (incl. the hard-exit
+  // watchdog) even runs. Only `vx mcp` pays for it.
+  .action(async () => (await import("./mcp.ts")).startMcpServer());
 
 registerLs(program);
 registerLogs(program);

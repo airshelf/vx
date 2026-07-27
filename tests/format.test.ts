@@ -1,5 +1,5 @@
 import { describe, test, expect, spyOn, afterEach } from "bun:test";
-import { relativeTime, stateColor, table, outputJson } from "../src/format";
+import { relativeTime, stateColor, table, outputJson, hint } from "../src/format";
 
 describe("relativeTime", () => {
   test("just now for timestamps < 60s ago", () => {
@@ -84,6 +84,38 @@ describe("table", () => {
     // Data rows
     expect(calls[1][0]).toContain("Alice");
     expect(calls[2][0]).toContain("Bob");
+  });
+});
+
+describe("hint", () => {
+  let spy: ReturnType<typeof spyOn>;
+
+  afterEach(() => {
+    spy.mockRestore();
+    delete process.env.VX_HINTS;
+  });
+
+  test("suppressed when stdout is not a TTY", () => {
+    spy = spyOn(console, "error").mockImplementation(() => {});
+    const orig = process.stdout.isTTY;
+    (process.stdout as any).isTTY = false;
+
+    try {
+      hint("some hint");
+    } finally {
+      (process.stdout as any).isTTY = orig;
+    }
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  test("VX_HINTS=1 forces hints on", () => {
+    spy = spyOn(console, "error").mockImplementation(() => {});
+    process.env.VX_HINTS = "1";
+
+    hint("some hint");
+
+    expect(spy).toHaveBeenCalledWith("some hint");
   });
 });
 

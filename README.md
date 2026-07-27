@@ -205,7 +205,7 @@ vx ls
 
 **3. stdout for data, stderr for noise**
 
-Results go to stdout. Warnings (rate limits, timeouts) go to stderr. An agent piping output never gets progress messages mixed into data.
+Results go to stdout. Warnings (rate limits, timeouts) go to stderr. An agent piping output never gets progress messages mixed into data. Stderr hints are suppressed entirely when stdout is piped (protects `2>&1 | jq`); set `VX_HINTS=1` to force them on.
 
 **4. No interactive prompts**
 
@@ -216,6 +216,8 @@ vx never prompts for confirmation, opens a browser, or launches an editor. Auth 
 The original `vercel logs` hangs silently for 5 minutes. vx has a `--timeout` flag (default 30s) and exits with a clear error message. Agents can detect failure and try something else.
 
 Beyond the per-request `AbortController` timeout, every one-shot command is guarded by a process-level hard-exit watchdog (default 60s, `VX_HARD_TIMEOUT_MS` to override). This exists because `controller.abort()` cannot interrupt bun's *native* fetch spin — observed: `vx status` pegged 100% CPU for 79 minutes despite the abort timer, because the promise never settled. A force-exit is the only reliable escape from that spin. The watchdog is `.unref()`'d, so a healthy command still exits the instant it finishes; the long-lived `mcp` server and streaming `logs` are excluded.
+
+The 100%-CPU spin turned out to strike during *module loading* too — before this watchdog is even armed, which is why hung `vx status` processes were observed despite it. Root cause was a bun ≤1.3.7 runtime bug (fixed by 1.3.14; reproduced at ~1-4% of spawns with `tests/` era `bun test` parents). Two defenses landed: bun is kept ≥1.3.14, and the MCP SDK — the heaviest dependency graph, and the likeliest thing to be mid-load when the spin hit — is now lazy-imported so only `vx mcp` pays for it.
 
 **6. Never mutate implicitly**
 

@@ -1,10 +1,15 @@
 import { describe, test, expect } from "bun:test";
 
+// Resolve the checkout under test from this file's location — hardcoding
+// /home/eo/src/vx silently tests the main checkout when run from a worktree.
+const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const CLI = `${REPO_ROOT}src/cli.ts`;
+
 async function runCli(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
-    cwd: "/home/eo/src/vx",
+  const proc = Bun.spawn(["bun", "run", CLI, ...args], {
+    cwd: REPO_ROOT,
     env: {
       ...process.env,
       VERCEL_TOKEN: "test-token",
