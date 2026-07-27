@@ -1,5 +1,10 @@
 import { describe, test, expect, afterAll } from "bun:test";
 
+// Resolve the checkout under test from this file's location — hardcoding
+// /home/eo/src/vx silently tests the main checkout when run from a worktree.
+const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const CLI = `${REPO_ROOT}src/cli.ts`;
+
 const events = [
   { created: Date.now(), text: "Installing dependencies..." },
   { created: Date.now(), text: "Building project..." },
@@ -9,6 +14,9 @@ const events = [
 let capturedPath = "";
 
 const server = Bun.serve({
+  // 127.0.0.1 on both sides — "localhost" can resolve to ::1 first and
+  // intermittently stall spawned CLI fetches (random 5000ms timeouts).
+  hostname: "127.0.0.1",
   port: 0,
   fetch(req) {
     const url = new URL(req.url);
@@ -28,12 +36,12 @@ afterAll(() => server.stop());
 async function runCli(
   ...args: string[]
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["bun", "run", "src/cli.ts", ...args], {
-    cwd: "/home/eo/src/vx",
+  const proc = Bun.spawn(["bun", "run", CLI, ...args], {
+    cwd: REPO_ROOT,
     env: {
       ...process.env,
       VERCEL_TOKEN: "test-token",
-      VX_API_BASE: `http://localhost:${server.port}`,
+      VX_API_BASE: `http://127.0.0.1:${server.port}`,
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -63,7 +71,8 @@ describe("logs build command", () => {
 
     expect(parsed.length).toBeGreaterThanOrEqual(2);
     for (const event of parsed) {
-      expect(event).toHaveProperty("text");
+      expect(event).toHaveProperty("message");
+      expect(event.message).not.toBe("");
     }
   });
 
@@ -96,34 +105,5 @@ describe("logs build command", () => {
   });
 });
 
-describe("logs runtime command", () => {
-  test("sends builds=0 for runtime subcommand", async () => {
-    capturedPath = "";
-    await runCli(
-      "logs",
-      "runtime",
-      "test.vercel.app",
-      "--no-follow",
-      "--timeout",
-      "5000"
-    );
-
-    expect(capturedPath).toContain("builds=0");
-  });
-
-  test("strips https:// prefix from URL", async () => {
-    capturedPath = "";
-    await runCli(
-      "logs",
-      "runtime",
-      "https://test.vercel.app",
-      "--no-follow",
-      "--timeout",
-      "5000"
-    );
-
-    expect(capturedPath).toStartWith(
-      "/v3/deployments/test.vercel.app/events"
-    );
-  });
-});
+// `logs runtime` queries Axiom (hardcoded api.axiom.co, needs a real token) —
+// it no longer touches /v3/deployments, so it isn't covered by this mock.

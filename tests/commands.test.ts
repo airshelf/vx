@@ -201,6 +201,7 @@ async function runCli(
       ...process.env,
       VERCEL_TOKEN: "test-token",
       VX_API_BASE: `http://127.0.0.1:${server.port}`,
+      VX_HINTS: "1",
     },
     stdout: "pipe",
     stderr: "pipe",
@@ -222,11 +223,11 @@ describe("ls command", () => {
     expect(data[0].url).toBe("test-app-abc123.vercel.app");
   });
 
-  test("ls table mode shows deployment URL and creator", async () => {
+  test("ls table mode shows deployment URL and state", async () => {
     const { stdout, exitCode } = await runCli("ls");
     expect(exitCode).toBe(0);
     expect(stdout).toContain("test-app-abc123.vercel.app");
-    expect(stdout).toContain("testuser");
+    expect(stdout).toContain("READY");
   });
 
   test("ls --wait exits 0 when deployment is READY", async () => {
@@ -252,6 +253,7 @@ describe("ls command", () => {
         ...process.env,
         VERCEL_TOKEN: "test-token",
         VX_API_BASE: `http://127.0.0.1:${server.port}`,
+        VX_HINTS: "1",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -278,6 +280,7 @@ describe("ls command", () => {
         ...process.env,
         VERCEL_TOKEN: "test-token",
         VX_API_BASE: `http://127.0.0.1:${server.port}`,
+        VX_HINTS: "1",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -511,7 +514,7 @@ describe("redeploy command", () => {
     const { stdout, stderr, exitCode } = await runCli("redeploy");
     expect(exitCode).toBe(0);
     expect(stdout).toContain("redeployed-app.vercel.app");
-    expect(stderr).toContain("vx ls --wait");
+    expect(stderr).toContain("use --wait to block until READY");
   });
 
   test("redeploy with URL resolves deployment", async () => {

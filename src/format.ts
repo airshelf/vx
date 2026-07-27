@@ -45,9 +45,10 @@ export function outputJson(data: unknown) {
  * Print a hint to stderr — suppressed when stdout is piped.
  * Prevents `vx ls --json 2>&1 | jq` from breaking when stderr
  * hints get mixed into stdout by the 2>&1.
+ * VX_HINTS=1 forces hints on regardless (agents opting in, tests).
  */
 export function hint(msg: string) {
-  if (process.stdout.isTTY) {
+  if (process.env.VX_HINTS === "1" || process.stdout.isTTY) {
     console.error(msg);
   }
 }
