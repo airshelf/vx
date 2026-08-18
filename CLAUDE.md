@@ -42,7 +42,6 @@ src/
 - `format.ts` handles all output formatting (table, JSON, colors)
 - Every command supports `--json` for machine-readable output
 - `env` is a command group: `vx env` (list), `vx env KEY` (filter), `vx env set K=V`, `vx env rm K`
-- Only `vx env set` and `vx env rm` mutate (alongside `vx redeploy`)
 - Commander positional options are ON (`program` + `env` group). Without them the parent `env` group silently consumed `--project`/`--target`/`--json` given after `set`/`rm` and `env set K=V --project X` wrote to the DEFAULT project (2026-07 incident). If a subcommand redeclares a group-level option name, it needs this — check `tests/commands.test.ts` ("env set/rm project scoping") before touching parsing.
 - `env set`/`env rm` echo the resolved project in the success line (`set KEY on bime-telegram (…)`) — that's the wrong-project tripwire, keep it.
 - Keep heavy deps OUT of cli.ts top-level imports: `mcp.ts` (MCP SDK + zod tree) is dynamically imported by the `mcp` command only. Import-time work runs before the hard watchdog is armed; on 2026-07-27, Bun <=1.3.7 hung at 100% CPU in roughly 1-4% of 120 spawned `bun run cli.ts` processes, while Bun 1.3.14 had 0/120 hangs.
@@ -96,7 +95,7 @@ Agents: use `ls` + `cat` on `.mcpfs/vx-resources/` for reads. Use `vx` CLI for A
 
 ## Design principles
 
-- Mostly read-only — only `vx redeploy` mutates (idempotent, triggers rebuild)
+- Treat `vx` as mostly read-only: only `vx env set`, `vx env rm`, and `vx redeploy` mutate; `redeploy` is idempotent and triggers rebuild.
 - Project scoping: `--project <name>` on logs/env/redeploy/status, or auto-detected from `.vercel/project.json`
 - Project ID: auto-detected by walking up from cwd to find `.vercel/project.json` (works in worktrees and monorepo subdirs)
 - `resolveProjectId()` in config.ts: accepts name or `prj_` ID, searches Vercel API by name
